@@ -1,59 +1,48 @@
-require("dotenv").config();
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
-const config = require("./config");
+const fs = require("fs");
+const paths = require("./src/paths");
+require("dotenv").config({ path: paths.ENV_FILE, quiet: true });
 
-const app = express();
+const { initDb, closeDb } = require("./src/db");
+const settings = require("./src/settings");
+const { createApp } = require("./src/app");
+const { scheduleAutoBackups } = require("./src/services/backup");
 
-app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "10mb" }));
-app.use(
-  "/api",
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 300,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Demasiadas peticiones. Intenta nuevamente más tarde." },
-  })
-);
+const PORT = Number(process.env.PORT) || 3000;
+// Por defecto solo acepta conexiones de esta misma PC. Para usarlo desde otras PCs de la red: HOST=0.0.0.0
+const HOST = process.env.HOST || "127.0.0.1";
 
-app.get("/api/health", (req, res) => res.json({ status: "ok", mode: config.APP_MODE }));
-app.get("/api/config", (req, res) =>
-  res.json({
-    mode: config.APP_MODE,
-    isLocal: config.isLocal,
-    isBilling: config.isBilling,
-    featureFlags: config.featureFlags,
-    invoiceTypes: config.isBilling ? ["A", "B", "C", "Consumidor Final"] : [],
-  })
-);
+paths.ensureDataDirs();
+if (!fs.existsSync(paths.DB_FILE)) {
+  console.error("El sistema no está instalado. Ejecutá INSTALAR.bat primero.");
+  process.exit(2);
+}
 
-app.use("/api/auth", require("./routes/auth"));
-app.use("/api/products", require("./routes/products"));
-app.use("/api/sales", require("./routes/sales"));
-app.use("/api/movements", require("./routes/movements"));
-app.use("/api/stats", require("./routes/stats"));
-app.use("/api/billing", require("./routes/billing"));
-app.use("/api/clients", require("./routes/clients"));
-app.use("/api/invoices", require("./routes/invoices"));
-app.use("/api/users", require("./routes/users"));
+initDb(paths.DB_FILE);
+if (!settings.getMode()) {
+  console.error("La instalación está incompleta (falta elegir el modo). Ejecutá INSTALAR.bat.");
+  process.exit(2);
+}
 
-app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
-  res.status(500).json({ error: err.message || "Error interno del servidor" });
+const app = createApp();
+const server = app.listen(PORT, HOST, () => {
+  fs.writeFileSync(paths.PID_FILE, String(process.pid));
+  console.log(`StockLocal en http://localhost:${PORT} | modo: ${settings.getMode()}`);
+  scheduleAutoBackups();
 });
 
-mongoose.connect(config.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB conectado");
-    app.listen(config.PORT, () => console.log(`🚀 Servidor en http://localhost:${config.PORT} | modo: ${config.APP_MODE}`));
-  })
-  .catch((err) => {
-    console.error("❌ Error MongoDB:", err.message);
-    process.exit(1);
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") console.error(`El puerto ${PORT} está ocupado. ¿Ya hay un StockLocal abierto? Si no, cambiá PORT en backend\\.env`);
+  else console.error(err);
+  process.exit(1);
+});
+
+function shutdown() {
+  server.close(() => {
+    closeDb();
+    fs.rmSync(paths.PID_FILE, { force: true });
+    process.exit(0);
   });
+  setTimeout(() => process.exit(0), 3000).unref();
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

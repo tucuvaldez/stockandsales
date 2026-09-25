@@ -1,17 +1,25 @@
 {
   "name": "stocklocal-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
   "main": "server.js",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
-    "start": "node server.js",
-    "setup:mode": "node scripts/setup-mode.js"
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
+    "install-wizard": "node --disable-warning=ExperimentalWarning scripts/install.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"tests/*.test.js\""
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.18.3",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
-    "helmet": "^8.0.0",
-    "mongoose": "^8.3.1"
+    "fast-xml-parser": "^5.11.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "node-forge": "^1.4.0"
   }
 }

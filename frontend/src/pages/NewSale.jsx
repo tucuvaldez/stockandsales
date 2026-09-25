@@ -1,218 +1,295 @@
-import { useState, useEffect } from "react";
-import { getProducts, createSale } from "../services/api";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+import { api } from "../api";
+import { useAuth } from "../auth";
+import { Badge, Modal, useDebounced } from "../components/ui";
+import ReceptorForm, { CONSUMIDOR_FINAL, letraReceptor, receptorError, receptorPayload } from "../components/ReceptorForm";
+import { CBTE_NOMBRES, PAYMENT_METHODS, cbteNumero, money, paymentLabel, round2 } from "../lib/format";
 
-const fmt = (n) => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format(n);
+const openPrint = (path) => window.open(path, "_blank", "noopener");
 
 export default function NewSale() {
-  const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState("");
+  const { isBilling, negocio } = useAuth();
+  const fiscal = negocio?.fiscal;
+  const fiscalReady = isBilling && fiscal && fiscal.faltantes.length === 0;
+
+  const [q, setQ] = useState("");
+  const dq = useDebounced(q, 200);
+  const [results, setResults] = useState([]);
   const [cart, setCart] = useState([]);
   const [metodoPago, setMetodoPago] = useState("efectivo");
   const [nota, setNota] = useState("");
+  const [desc, setDesc] = useState({ tipo: "pct", valor: "" });
+  const [emitir, setEmitir] = useState(true);
+  const [receptor, setReceptor] = useState(CONSUMIDOR_FINAL);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [descGlobalTipo, setDescGlobalTipo] = useState("pct");
-  const [descGlobalVal, setDescGlobalVal] = useState("");
+  const [result, setResult] = useState(null);
+  const searchRef = useRef(null);
 
-  useEffect(() => { getProducts({ nombre: search }).then(setProducts).catch(()=>{}); }, [search]);
+  useEffect(() => {
+    api.get("/products", { q: dq, limit: 60 }).then(setResults).catch((e) => toast.error(e.message));
+  }, [dq]);
 
-  const addToCart = (p) => {
-    if (p.stock === 0) { toast.error(`"${p.nombre}" no tiene stock`); return; }
+  const add = useCallback((p) => {
+    if (p.stock <= 0) return toast.error(`"${p.nombre}" no tiene stock`);
     setCart((prev) => {
-      const ex = prev.find((i) => i._id === p._id);
+      const ex = prev.find((i) => i.id === p.id);
       if (ex) {
-        if (ex.cantidad >= p.stock) { toast.error(`Stock máximo: ${p.stock}`); return prev; }
-        return prev.map((i) => i._id===p._id ? {...i,cantidad:i.cantidad+1} : i);
+        if (ex.cantidad >= p.stock) {
+          toast.error(`Solo hay ${p.stock} en stock`);
+          return prev;
+        }
+        return prev.map((i) => (i.id === p.id ? { ...i, cantidad: i.cantidad + 1 } : i));
       }
-      return [...prev, {...p, cantidad:1, descItemPct:""}];
+      return [...prev, { ...p, cantidad: 1, descuentoPct: "" }];
     });
+  }, []);
+
+  // Enter en el buscador: primero código exacto (lector de barras), si no, el único resultado.
+  const onSearchEnter = async () => {
+    const term = q.trim();
+    if (!term) return;
+    try {
+      add(await api.get(`/products/codigo/${encodeURIComponent(term)}`));
+      setQ("");
+    } catch {
+      if (results.length === 1) { add(results[0]); setQ(""); }
+      else toast.error(results.length ? "Hay varios resultados: elegí uno de la lista" : "No se encontró el producto");
+    }
   };
 
-  const updateQty = (id, delta) => setCart((prev) => prev.map((i)=>i._id===id?{...i,cantidad:i.cantidad+delta}:i).filter((i)=>i.cantidad>0));
-  const updateDesc = (id, val) => setCart((prev) => prev.map((i)=>i._id===id?{...i,descItemPct:val===""?"":Math.min(100,Math.max(0,Number(val)))}:i));
-  const removeFromCart = (id) => setCart((prev) => prev.filter((i)=>i._id!==id));
+  const setQty = (id, cantidad) =>
+    setCart((prev) => prev.map((i) => (i.id === id ? { ...i, cantidad: Math.max(1, Math.min(i.stock, Math.floor(Number(cantidad) || 1))) } : i)));
+  const setItemDesc = (id, v) => setCart((prev) => prev.map((i) => (i.id === id ? { ...i, descuentoPct: v === "" ? "" : Math.min(100, Math.max(0, Number(v))) } : i)));
+  const remove = (id) => setCart((prev) => prev.filter((i) => i.id !== id));
 
-  const subtotalBruto = cart.reduce((s,i)=>s+i.precio*i.cantidad,0);
-  const subtotalConDescItems = cart.reduce((s,i)=>s+i.precio*i.cantidad*(1-(Number(i.descItemPct)||0)/100),0);
-  const descGlobalNum = Number(descGlobalVal)||0;
-  const descGlobalMonto = descGlobalTipo==="pct" ? subtotalConDescItems*(descGlobalNum/100) : Math.min(descGlobalNum,subtotalConDescItems);
-  const totalFinal = Math.max(0, subtotalConDescItems - descGlobalMonto);
-  const totalDescuentos = subtotalBruto - totalFinal;
+  // Mismos cálculos que el servidor (el servidor es el que manda).
+  const lineTotal = (i) => round2(i.precio * i.cantidad * (1 - (Number(i.descuentoPct) || 0) / 100));
+  const bruto = round2(cart.reduce((s, i) => s + i.precio * i.cantidad, 0));
+  const subtotal = round2(cart.reduce((s, i) => s + lineTotal(i), 0));
+  const descValor = Number(desc.valor) || 0;
+  const descMonto = desc.tipo === "pct" ? round2((subtotal * Math.min(descValor, 100)) / 100) : round2(Math.min(descValor, subtotal));
+  const total = round2(subtotal - descMonto);
+  const unidades = cart.reduce((s, i) => s + i.cantidad, 0);
 
-  const handleSale = async () => {
-    if (cart.length===0) { toast.error("El carrito está vacío"); return; }
+  const facturar = fiscalReady && emitir;
+  const recError = facturar ? receptorError(receptor, total, fiscal) : null;
+
+  const openConfirm = useCallback(() => {
+    if (!cart.length) return toast.error("Agregá al menos un producto");
+    if (recError) return toast.error(recError);
+    setConfirmOpen(true);
+  }, [cart.length, recError]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "F2") { e.preventDefault(); openConfirm(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openConfirm]);
+
+  const reset = () => {
+    setCart([]); setNota(""); setDesc({ tipo: "pct", valor: "" }); setReceptor(CONSUMIDOR_FINAL); setMetodoPago("efectivo");
+    setResult(null);
+    api.get("/products", { q: "", limit: 60 }).then(setResults).catch(() => {});
+    setTimeout(() => searchRef.current?.focus(), 50);
+  };
+
+  const confirm = async () => {
     setSaving(true);
     try {
-      await createSale({
-        items: cart.map((i)=>({productoId:i._id,cantidad:i.cantidad,descuentoPct:Number(i.descItemPct)||0})),
+      const r = await api.post("/sales", {
+        items: cart.map((i) => ({ productId: i.id, cantidad: i.cantidad, descuentoPct: Number(i.descuentoPct) || 0 })),
         metodoPago, nota,
-        descuentoGlobal:{tipo:descGlobalTipo,valor:descGlobalNum,monto:descGlobalMonto},
-        totalFinal,
+        descuento: { tipo: desc.tipo, valor: descValor },
+        factura: { emitir: facturar, receptor: receptorPayload(receptor) },
       });
-      toast.success("¡Venta registrada!");
-      setCart([]); setNota(""); setDescGlobalVal(""); setShowConfirm(false);
-      navigate("/historial");
-    } catch(e) { toast.error(e.message); } finally { setSaving(false); }
+      setConfirmOpen(false);
+      setResult(r);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr 390px",gap:24,alignItems:"start"}}>
-      {/* Izquierda */}
-      <div>
-        <div className="page-header" style={{marginBottom:20}}>
-          <div><h2 className="page-title">Nueva Venta</h2><p className="page-subtitle">Buscá y agregá productos al carrito</p></div>
+    <div className="sale-layout">
+      <section>
+        <div className="page-header compact">
+          <div><h2 className="page-title">Nueva venta</h2><p className="page-subtitle">Escaneá el código o buscá el producto. <kbd>Enter</kbd> agrega · <kbd>F2</kbd> cobra</p></div>
         </div>
-        <div className="filters-bar">
-          <input className="form-input" placeholder="🔍 Buscar por nombre..." value={search} onChange={(e)=>setSearch(e.target.value)} style={{maxWidth:"100%"}} />
+        <input
+          ref={searchRef}
+          className="form-input search-big"
+          autoFocus
+          placeholder="🔍 Código de barras, código o nombre..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onSearchEnter()}
+        />
+        <div className="table-wrap mt-12">
+          <table>
+            <thead><tr><th>Código</th><th>Producto</th><th className="text-right">Precio</th><th>Stock</th><th /></tr></thead>
+            <tbody>
+              {results.length === 0 && <tr><td colSpan={5} className="text-center text-muted">No se encontraron productos</td></tr>}
+              {results.map((p) => (
+                <tr key={p.id} className={p.stock <= 0 ? "row-disabled" : "row-click"} onClick={() => add(p)}>
+                  <td className="mono">{p.codigo}</td>
+                  <td><strong>{p.nombre}</strong>{p.talle && <span className="text-muted"> · {p.talle}</span>}</td>
+                  <td className="text-right fw-600">{money(p.precio)}</td>
+                  <td>{p.stock <= 0 ? <Badge kind="danger">Sin stock</Badge> : <Badge kind={p.stock <= p.stock_minimo ? "warning" : "success"}>{p.stock}</Badge>}</td>
+                  <td className="text-right"><button className="btn btn-sm btn-primary" disabled={p.stock <= 0} onClick={(e) => { e.stopPropagation(); add(p); }}>Agregar</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        {products.length===0 ? (
-          <div className="empty-state card"><div className="empty-icon">🔍</div><p>No se encontraron productos</p></div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Código</th><th>Nombre</th><th>Talle</th><th>Precio</th><th>Stock</th><th></th></tr></thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={p._id} style={{opacity:p.stock===0?0.5:1}}>
-                    <td className="mono">{p.codigo}</td>
-                    <td style={{fontWeight:500}}>{p.nombre}</td>
-                    <td>{p.talle||"—"}</td>
-                    <td style={{fontWeight:600}}>{fmt(p.precio)}</td>
-                    <td>{p.stock===0?<span className="badge badge-danger">Sin stock</span>:<span className="badge badge-success">{p.stock} ud.</span>}</td>
-                    <td><button className="btn btn-sm btn-primary" onClick={()=>addToCart(p)} disabled={p.stock===0}>+ Agregar</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      </section>
+
+      <aside className="cart card">
+        <div className="cart-head">
+          <h3>🛒 Venta actual</h3>
+          <span className="text-muted fs-13">{cart.length ? `${unidades} unidad(es)` : "Vacía"}</span>
+        </div>
+
+        <div className="cart-items">
+          {cart.length === 0 && <p className="cart-empty">Agregá productos desde la lista</p>}
+          {cart.map((i) => (
+            <div className="cart-item" key={i.id}>
+              <div className="grow">
+                <div className="cart-item-name">{i.nombre}{i.talle && <span className="text-muted"> · {i.talle}</span>}</div>
+                <div className="cart-item-meta">{money(i.precio)} c/u · desc. <input className="mini-input" type="number" min="0" max="100" placeholder="0" value={i.descuentoPct} onChange={(e) => setItemDesc(i.id, e.target.value)} aria-label="Descuento %" />%</div>
+              </div>
+              <div className="cart-qty">
+                <button className="qty-btn" onClick={() => (i.cantidad > 1 ? setQty(i.id, i.cantidad - 1) : remove(i.id))} aria-label="Restar">−</button>
+                <input className="qty-input" value={i.cantidad} onChange={(e) => setQty(i.id, e.target.value)} inputMode="numeric" aria-label="Cantidad" />
+                <button className="qty-btn" onClick={() => setQty(i.id, i.cantidad + 1)} disabled={i.cantidad >= i.stock} aria-label="Sumar">+</button>
+              </div>
+              <div className="cart-line-total">
+                <strong>{money(lineTotal(i))}</strong>
+                <button className="link-btn" onClick={() => remove(i.id)}>quitar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {cart.length > 0 && (
+          <div className="cart-foot">
+            <div className="form-label mb-6">Medio de pago</div>
+            <div className="pay-grid">
+              {PAYMENT_METHODS.map((m) => (
+                <button key={m.value} type="button" className={`pay-btn ${metodoPago === m.value ? "active" : ""}`} onClick={() => setMetodoPago(m.value)}>
+                  <span aria-hidden>{m.icon}</span> {m.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="inline-fields mt-12">
+              <span className="form-label">Descuento general</span>
+              <select className="form-select sm" value={desc.tipo} onChange={(e) => setDesc({ ...desc, tipo: e.target.value })}>
+                <option value="pct">%</option>
+                <option value="monto">$</option>
+              </select>
+              <input className="form-input sm" type="number" min="0" placeholder="0" value={desc.valor} onChange={(e) => setDesc({ ...desc, valor: e.target.value })} />
+            </div>
+            <input className="form-input mt-8" placeholder="Nota (opcional)" value={nota} maxLength={300} onChange={(e) => setNota(e.target.value)} />
+
+            {isBilling && (
+              <div className="billing-box">
+                {!fiscalReady ? (
+                  <p className="fs-13 text-muted">La facturación aún no está configurada. La venta se registrará sin factura.</p>
+                ) : (
+                  <>
+                    <label className="check">
+                      <input type="checkbox" checked={emitir} onChange={(e) => setEmitir(e.target.checked)} /> Emitir factura electrónica
+                    </label>
+                    {emitir && <ReceptorForm value={receptor} onChange={setReceptor} />}
+                    {recError && <div className="form-error">{recError}</div>}
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="totals">
+              <div className="row-between text-muted"><span>Subtotal</span><span>{money(bruto)}</span></div>
+              {bruto - total > 0.004 && <div className="row-between text-success"><span>Descuentos</span><span>− {money(bruto - total)}</span></div>}
+              <div className="row-between total-line"><span>TOTAL</span><span>{money(total)}</span></div>
+            </div>
+            <button className="btn btn-primary btn-block btn-lg" onClick={openConfirm}>Cobrar {money(total)} <kbd>F2</kbd></button>
           </div>
         )}
-      </div>
+      </aside>
 
-      {/* Carrito */}
-      <div style={{position:"sticky",top:24}}>
-        <div className="card" style={{padding:0,overflow:"hidden"}}>
-          <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border)",background:"var(--surface2)"}}>
-            <h3 style={{fontWeight:700,fontSize:16}}>🛒 Carrito</h3>
-            <p style={{fontSize:13,color:"var(--text-muted)",marginTop:2}}>{cart.length===0?"Vacío":`${cart.reduce((s,i)=>s+i.cantidad,0)} producto(s)`}</p>
-          </div>
-
-          <div style={{padding:"0 20px",maxHeight:340,overflowY:"auto"}}>
-            {cart.length===0 ? (
-              <p style={{padding:"24px 0",textAlign:"center",color:"var(--text-muted)",fontSize:14}}>Agregá productos desde la izquierda</p>
-            ) : cart.map((item) => {
-              const desc = Number(item.descItemPct)||0;
-              const precioDesc = item.precio*(1-desc/100);
-              return (
-                <div className="cart-item" key={item._id}>
-                  <div style={{flex:1}}>
-                    <div className="cart-item-name">{item.nombre}</div>
-                    <div className="cart-item-meta">
-                      {item.talle?`Talle: ${item.talle} · `:""}
-                      {desc>0?(<><span style={{textDecoration:"line-through",color:"var(--text-light)"}}>{fmt(item.precio)}</span>{" "}<span style={{color:"var(--success)",fontWeight:600}}>{fmt(precioDesc)}</span></>):fmt(item.precio)}
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:6,marginTop:6}}>
-                      <span style={{fontSize:12,color:"var(--text-muted)"}}>Desc. %</span>
-                      <input type="number" min="0" max="100" placeholder="0" value={item.descItemPct}
-                        onChange={(e)=>updateDesc(item._id,e.target.value)}
-                        style={{width:54,padding:"3px 7px",fontSize:13,border:"1px solid var(--border)",borderRadius:"var(--radius-sm)",fontFamily:"inherit",outline:"none"}} />
-                    </div>
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
-                    <div className="cart-qty">
-                      <button className="qty-btn" onClick={()=>updateQty(item._id,-1)}>−</button>
-                      <span style={{fontWeight:700,minWidth:24,textAlign:"center"}}>{item.cantidad}</span>
-                      <button className="qty-btn" onClick={()=>updateQty(item._id,1)} disabled={item.cantidad>=item.stock}>+</button>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontWeight:700,fontSize:14}}>{fmt(precioDesc*item.cantidad)}</div>
-                      <button onClick={()=>removeFromCart(item._id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-muted)",fontSize:12}}>quitar</button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {cart.length>0 && (
-            <div style={{padding:"16px 20px",borderTop:"1px solid var(--border)"}}>
-              {/* Descuento global */}
-              <div style={{background:"var(--surface2)",borderRadius:"var(--radius-sm)",padding:"12px",marginBottom:14}}>
-                <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>🏷️ Descuento sobre el total</div>
-                <div style={{display:"flex",gap:8}}>
-                  <select className="form-select" value={descGlobalTipo} onChange={(e)=>setDescGlobalTipo(e.target.value)} style={{width:120,padding:"6px 8px",fontSize:13}}>
-                    <option value="pct">% Porcentaje</option>
-                    <option value="monto">$ Monto fijo</option>
-                  </select>
-                  <input className="form-input" type="number" min="0" placeholder={descGlobalTipo==="pct"?"Ej: 10":"Ej: 500"} value={descGlobalVal} onChange={(e)=>setDescGlobalVal(e.target.value)} style={{flex:1,padding:"6px 10px",fontSize:13}} />
-                  {descGlobalVal && <button className="btn btn-ghost btn-sm" onClick={()=>setDescGlobalVal("")}>✕</button>}
-                </div>
-                {descGlobalMonto>0 && <div style={{fontSize:12,color:"var(--success)",marginTop:6,fontWeight:600}}>Ahorrás: {fmt(descGlobalMonto)}</div>}
-              </div>
-
-              {/* Pago */}
-              <div className="form-group" style={{marginBottom:10}}>
-                <label className="form-label">Método de pago</label>
-                <select className="form-select" value={metodoPago} onChange={(e)=>setMetodoPago(e.target.value)}>
-                  <option value="efectivo">💵 Efectivo</option>
-                  <option value="transferencia">🏦 Transferencia</option>
-                  <option value="tarjeta">💳 Tarjeta</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </div>
-              <div className="form-group" style={{marginBottom:14}}>
-                <label className="form-label">Nota (opcional)</label>
-                <input className="form-input" placeholder="Ej: cliente frecuente..." value={nota} onChange={(e)=>setNota(e.target.value)} />
-              </div>
-
-              {/* Totales */}
-              <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginBottom:14}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"var(--text-muted)",marginBottom:4}}><span>Subtotal</span><span>{fmt(subtotalBruto)}</span></div>
-                {totalDescuentos>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:"var(--success)",marginBottom:4}}><span>Descuentos aplicados</span><span>− {fmt(totalDescuentos)}</span></div>}
-                <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:22,color:"var(--accent)",marginTop:8}}><span>TOTAL</span><span>{fmt(totalFinal)}</span></div>
-              </div>
-
-              <button className="btn btn-primary" style={{width:"100%",justifyContent:"center",padding:"12px"}} onClick={()=>setShowConfirm(true)}>
-                ✅ Confirmar venta
-              </button>
+      {confirmOpen && (
+        <Modal
+          title="Confirmar venta"
+          onClose={() => !saving && setConfirmOpen(false)}
+          width={460}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setConfirmOpen(false)} disabled={saving}>Volver</button>
+              <button className="btn btn-primary" autoFocus onClick={confirm} disabled={saving}>{saving ? (facturar ? "Registrando y facturando..." : "Registrando...") : "Confirmar"}</button>
+            </>
+          }
+        >
+          {cart.map((i) => (
+            <div key={i.id} className="row-between line">
+              <span>{i.nombre} × {i.cantidad}{Number(i.descuentoPct) > 0 && <span className="text-success fs-13"> −{i.descuentoPct}%</span>}</span>
+              <strong>{money(lineTotal(i))}</strong>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Modal confirmación */}
-      {showConfirm && (
-        <div className="modal-overlay">
-          <div className="modal" style={{maxWidth:440}}>
-            <div className="modal-header"><h3 className="modal-title">Confirmar venta</h3></div>
-            <div className="modal-body">
-              <div style={{marginBottom:14}}>
-                <span className="badge badge-neutral" style={{fontSize:14}}>
-                  {metodoPago==="efectivo"?"💵 Efectivo":metodoPago==="transferencia"?"🏦 Transferencia":metodoPago==="tarjeta"?"💳 Tarjeta":"Otro"}
-                </span>
-              </div>
-              {cart.map((i)=>{
-                const desc=Number(i.descItemPct)||0;
-                const precio=i.precio*(1-desc/100);
-                return (
-                  <div key={i._id} style={{display:"flex",justifyContent:"space-between",fontSize:14,padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
-                    <span>{i.nombre}{i.talle?` (${i.talle})`:""} × {i.cantidad}{desc>0&&<span style={{color:"var(--success)",fontSize:12}}> −{desc}%</span>}</span>
-                    <strong>{fmt(precio*i.cantidad)}</strong>
-                  </div>
-                );
-              })}
-              {descGlobalMonto>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"7px 0",color:"var(--success)"}}><span>Desc. general ({descGlobalTipo==="pct"?`${descGlobalNum}%`:fmt(descGlobalNum)})</span><span>− {fmt(descGlobalMonto)}</span></div>}
-              <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,fontSize:20,marginTop:14,color:"var(--accent)"}}><span>Total</span><span>{fmt(totalFinal)}</span></div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={()=>setShowConfirm(false)}>Volver</button>
-              <button className="btn btn-primary" onClick={handleSale} disabled={saving}>{saving?"Guardando...":"Confirmar y guardar"}</button>
-            </div>
+          ))}
+          {descMonto > 0 && <div className="row-between line text-success"><span>Descuento general</span><span>− {money(descMonto)}</span></div>}
+          <div className="row-between total-line mt-12"><span>Total</span><span>{money(total)}</span></div>
+          <div className="confirm-meta">
+            <Badge>{paymentLabel(metodoPago)}</Badge>
+            {facturar ? <Badge kind="accent">Factura {letraReceptor(receptor, fiscal)} · {receptor.tipo === "cf" ? "Consumidor final" : receptor.nombre}</Badge> : isBilling && <Badge kind="warning">Sin factura</Badge>}
           </div>
+        </Modal>
+      )}
+
+      {result && <SaleDone result={result} onNew={reset} />}
+    </div>
+  );
+}
+
+function SaleDone({ result, onNew }) {
+  const { sale, invoice, invoiceError } = result;
+  const ok = invoice?.estado === "autorizada";
+  const btnRef = useRef(null);
+  useEffect(() => btnRef.current?.focus(), []);
+
+  return (
+    <Modal
+      title={`Venta #${sale.id} registrada`}
+      onClose={onNew}
+      width={460}
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={() => openPrint(`/imprimir/venta/${sale.id}`)}>🖨️ Ticket</button>
+          {ok && <button className="btn btn-secondary" onClick={() => openPrint(`/imprimir/comprobante/${invoice.id}`)}>🖨️ Factura</button>}
+          <button ref={btnRef} className="btn btn-primary" onClick={onNew}>Nueva venta</button>
+        </>
+      }
+    >
+      <div className="done-total">{money(sale.total)}</div>
+      <p className="text-center text-muted">{paymentLabel(sale.metodo_pago)} · stock actualizado</p>
+      {invoice && ok && (
+        <div className="alert-banner alert-success mt-12">
+          ✅ {CBTE_NOMBRES[invoice.tipo_cbte]} {cbteNumero(invoice.pto_vta, invoice.numero)} autorizada. CAE {invoice.cae}
         </div>
       )}
-    </div>
+      {invoice && !ok && (
+        <div className="alert-banner alert-warning mt-12">
+          ⚠️ La venta quedó registrada, pero la factura está <strong>{invoice.estado}</strong>: {invoice.mensajes || "sin detalle"}.<br />
+          Podés reintentarla desde <strong>Comprobantes ARCA</strong>.
+        </div>
+      )}
+      {invoiceError && (
+        <div className="alert-banner alert-warning mt-12">⚠️ La venta quedó registrada pero no se pudo facturar: {invoiceError}. Podés facturarla desde Ventas.</div>
+      )}
+    </Modal>
   );
 }

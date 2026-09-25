@@ -1,53 +1,57 @@
-import { useEffect, useState } from "react";
-import { Routes, Route, NavLink } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "./auth";
+import Layout, { NAV } from "./components/Layout";
+import { Loader } from "./components/ui";
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
 import NewSale from "./pages/NewSale";
-import SalesHistory from "./pages/SalesHistory";
+import Sales from "./pages/Sales";
+import Products from "./pages/Products";
+import Movements from "./pages/Movements";
+import Invoices from "./pages/Invoices";
+import Clients from "./pages/Clients";
+import Users from "./pages/Users";
+import Activity from "./pages/Activity";
+import Settings from "./pages/Settings";
+import PrintSale from "./pages/PrintSale";
+import PrintInvoice from "./pages/PrintInvoice";
 
-const NAV = [
-  { to: "/", label: "Dashboard", icon: "📊" },
-  { to: "/productos", label: "Productos", icon: "📦" },
-  { to: "/nueva-venta", label: "Nueva Venta", icon: "🛒" },
-  { to: "/historial", label: "Historial", icon: "📋" },
-];
+const PAGES = {
+  "/": Dashboard, "/nueva-venta": NewSale, "/ventas": Sales, "/productos": Products, "/movimientos": Movements,
+  "/comprobantes": Invoices, "/clientes": Clients, "/usuarios": Users, "/actividad": Activity, "/configuracion": Settings,
+};
 
 export default function App() {
-  const [modeInfo, setModeInfo] = useState({ mode: "local", isBilling: false });
+  const { status, error, user, isBilling } = useAuth();
 
-  useEffect(() => {
-    fetch("/api/config")
-      .then((res) => res.json())
-      .then((data) => setModeInfo({ mode: data.mode || "local", isBilling: !!data.isBilling }))
-      .catch(() => setModeInfo({ mode: "local", isBilling: false }));
-  }, []);
+  if (status === "loading") return <Loader text="Abriendo StockLocal..." />;
+  if (status === "error") {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <h1 className="login-logo">Stock<span>Local</span></h1>
+          <div className="login-error">{error}</div>
+          <button className="btn btn-primary btn-block" onClick={() => window.location.reload()}>Reintentar</button>
+        </div>
+      </div>
+    );
+  }
+  if (!user) return <Login />;
+
+  const allowed = NAV.filter((n) => (!n.roles || n.roles.includes(user.rol)) && (!n.billing || isBilling));
+  const home = allowed[0].to;
 
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <h1>Stock<span>Local</span></h1>
-          <p>{modeInfo.isBilling ? "Facturación activa" : "Control de inventario"}</p>
-        </div>
-        <nav className="sidebar-nav">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === "/"} className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
-              <span className="nav-icon">{n.icon}</span>{n.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-      <main className="main-content">
-        <div className="mode-banner">
-          <span className="mode-pill">{modeInfo.isBilling ? "Modo: Facturación" : "Modo: Local"}</span>
-        </div>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/productos" element={<Products />} />
-          <Route path="/nueva-venta" element={<NewSale />} />
-          <Route path="/historial" element={<SalesHistory />} />
-        </Routes>
-      </main>
-    </div>
+    <Routes>
+      <Route path="/imprimir/venta/:id" element={<PrintSale />} />
+      <Route path="/imprimir/comprobante/:id" element={<PrintInvoice />} />
+      <Route element={<Layout />}>
+        {allowed.map((n) => {
+          const Page = PAGES[n.to];
+          return <Route key={n.to} path={n.to} element={n.to === "/" && home !== "/" ? <Navigate to={home} replace /> : <Page />} />;
+        })}
+        <Route path="*" element={<Navigate to={home} replace />} />
+      </Route>
+    </Routes>
   );
 }
