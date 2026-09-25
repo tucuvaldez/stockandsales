@@ -49,4 +49,6 @@ npm test                               # tests (ventas, facturación con ARCA si
 npm run release                        # zip para instalar en clientes
 ```
 
+En Mac o Linux, para probar como lo haría un cliente: `scripts/instalar-mac-linux.sh` y `scripts/iniciar-mac-linux.sh`. Los clientes (Windows) usan los `.bat` de la carpeta principal.
+
 `STOCKLOCAL_DATA=/otra/carpeta` usa otra carpeta de datos (útil para tener varias instalaciones de prueba).
