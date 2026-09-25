@@ -187,6 +187,53 @@ const MIGRATIONS = [
   );
   CREATE INDEX idx_audit_fecha ON audit_log(fecha);
   `,
+  // 2: caja diaria. Cada movimiento de dinero (venta, devolución, retiro...) queda en cash_entries.
+  `
+  CREATE TABLE cash_sessions (
+    id INTEGER PRIMARY KEY,
+    estado TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta','cerrada')),
+    abierta_at TEXT NOT NULL,
+    abierta_por_id INTEGER REFERENCES users(id),
+    abierta_por TEXT NOT NULL,
+    monto_inicial REAL NOT NULL CHECK (monto_inicial >= 0),
+    nota_apertura TEXT NOT NULL DEFAULT '',
+    cerrada_at TEXT,
+    cerrada_por_id INTEGER REFERENCES users(id),
+    cerrada_por TEXT,
+    efectivo_esperado REAL,
+    efectivo_contado REAL,
+    diferencia REAL,
+    nota_cierre TEXT NOT NULL DEFAULT ''
+  );
+  CREATE UNIQUE INDEX ux_cash_una_abierta ON cash_sessions(estado) WHERE estado = 'abierta';
+
+  CREATE TABLE cash_entries (
+    id INTEGER PRIMARY KEY,
+    session_id INTEGER REFERENCES cash_sessions(id),
+    fecha TEXT NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('venta','devolucion','anulacion','ingreso','egreso')),
+    metodo_pago TEXT NOT NULL,
+    monto REAL NOT NULL,
+    motivo TEXT NOT NULL DEFAULT '',
+    ref_tipo TEXT,
+    ref_id INTEGER,
+    user_id INTEGER REFERENCES users(id),
+    usuario_nombre TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX idx_cash_entries_session ON cash_entries(session_id, fecha);
+
+  ALTER TABLE sales ADD COLUMN cash_session_id INTEGER REFERENCES cash_sessions(id);
+
+  -- Una venta puede pagarse con varios medios (ej: parte efectivo, parte transferencia).
+  CREATE TABLE sale_payments (
+    id INTEGER PRIMARY KEY,
+    sale_id INTEGER NOT NULL REFERENCES sales(id),
+    metodo_pago TEXT NOT NULL,
+    monto REAL NOT NULL CHECK (monto > 0)
+  );
+  CREATE INDEX idx_sale_payments_sale ON sale_payments(sale_id);
+  INSERT INTO sale_payments (sale_id, metodo_pago, monto) SELECT id, metodo_pago, total FROM sales WHERE total > 0;
+  `,
 ];
 
 let db = null;

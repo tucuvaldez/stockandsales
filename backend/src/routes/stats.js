@@ -47,8 +47,15 @@ router.get("/dashboard", (req, res) => {
       )
       .all(inicioMes),
     mediosPago: db
-      .prepare("SELECT metodo_pago, COUNT(*) AS cantidad, SUM(total - total_devuelto) AS total FROM sales WHERE estado = 'completada' AND fecha >= ? GROUP BY metodo_pago ORDER BY total DESC")
+      .prepare(
+        `SELECT p.metodo_pago, COUNT(*) AS cantidad, SUM(p.monto) AS total FROM sale_payments p JOIN sales s ON s.id = p.sale_id
+         WHERE s.estado = 'completada' AND s.fecha >= ? GROUP BY p.metodo_pago ORDER BY total DESC`
+      )
       .all(inicioMes),
+    caja: (() => {
+      const c = db.prepare("SELECT id, abierta_at, abierta_por FROM cash_sessions WHERE estado = 'abierta'").get();
+      return c || null;
+    })(),
     comprobantesConProblemas: isBilling()
       ? db.prepare("SELECT COUNT(*) AS n FROM invoices WHERE estado IN ('pendiente','error','rechazada')").get().n
       : 0,

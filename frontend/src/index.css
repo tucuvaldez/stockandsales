@@ -236,6 +236,14 @@ th.text-right, td.text-right { text-align: right; }
 .guide summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 .guide .steps { margin-top: 10px; }
 
+/* Caja */
+.input-money { font-size: 20px; font-weight: 700; padding: 11px 14px; }
+.cash-entries { max-height: 420px; overflow-y: auto; }
+.split-row { display: grid; grid-template-columns: 1fr 120px 28px; gap: 6px; margin-bottom: 6px; }
+.change-box { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; }
+.change-box .form-input { width: 130px; }
+.change-box strong { margin-left: auto; font-size: 16px; }
+
 /* Utilidades */
 .mono { font-family: var(--mono); font-size: 13px; }
 .text-muted { color: var(--text-muted); } .text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-warning { color: var(--warning); } .text-body { color: var(--text); }

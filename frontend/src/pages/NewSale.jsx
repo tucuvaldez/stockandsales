@@ -25,7 +25,15 @@ export default function NewSale() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
+  const [caja, setCaja] = useState(null);
+  const [split, setSplit] = useState(false);
+  const [pagos, setPagos] = useState([{ metodoPago: "efectivo", monto: "" }, { metodoPago: "transferencia", monto: "" }]);
+  const [pagaCon, setPagaCon] = useState("");
   const searchRef = useRef(null);
+
+  const loadCaja = useCallback(() => api.get("/cash/actual").then(setCaja).catch(() => {}), []);
+  useEffect(() => { loadCaja(); }, [loadCaja]);
+  const cajaBloquea = caja?.obligatoria && !caja?.session;
 
   useEffect(() => {
     api.get("/products", { q: dq, limit: 60 }).then(setResults).catch((e) => toast.error(e.message));
@@ -73,14 +81,35 @@ export default function NewSale() {
   const total = round2(subtotal - descMonto);
   const unidades = cart.reduce((s, i) => s + i.cantidad, 0);
 
+  const pagosNum = pagos.map((p) => ({ ...p, monto: round2(Number(p.monto) || 0) })).filter((p) => p.monto > 0);
+  const pagosSuma = round2(pagosNum.reduce((s, p) => s + p.monto, 0));
+  const pagosFalta = round2(total - pagosSuma);
+  const efectivoACobrar = split ? pagosNum.filter((p) => p.metodoPago === "efectivo").reduce((s, p) => s + p.monto, 0) : metodoPago === "efectivo" ? total : 0;
+  const vuelto = pagaCon !== "" ? round2(Number(pagaCon) - efectivoACobrar) : null;
+  const setPago = (i, patch) => setPagos((prev) => prev.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  // Al cargar un monto, el último medio que no se tocó a mano se completa con lo que falta.
+  const setMontoPago = (i, monto) =>
+    setPagos((prev) => {
+      const next = prev.map((p, j) => (j === i ? { ...p, monto, touched: true } : p));
+      const auto = next.map((p, j) => j).reverse().find((j) => j !== i && !next[j].touched);
+      if (auto !== undefined) {
+        const otros = next.reduce((s, p, j) => (j === auto ? s : s + (Number(p.monto) || 0)), 0);
+        const resto = round2(total - otros);
+        next[auto] = { ...next[auto], monto: resto > 0 ? String(resto) : "" };
+      }
+      return next;
+    });
+
   const facturar = fiscalReady && emitir;
   const recError = facturar ? receptorError(receptor, total, fiscal) : null;
 
   const openConfirm = useCallback(() => {
     if (!cart.length) return toast.error("Agregá al menos un producto");
+    if (cajaBloquea) return toast.error("Abrí la caja para poder vender");
+    if (split && Math.abs(pagosFalta) > 0.005) return toast.error(pagosFalta > 0 ? `Falta asignar ${money(pagosFalta)} a un medio de pago` : `Los pagos superan el total por ${money(-pagosFalta)}`);
     if (recError) return toast.error(recError);
     setConfirmOpen(true);
-  }, [cart.length, recError]);
+  }, [cart.length, recError, cajaBloquea, split, pagosFalta]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -92,6 +121,7 @@ export default function NewSale() {
 
   const reset = () => {
     setCart([]); setNota(""); setDesc({ tipo: "pct", valor: "" }); setReceptor(CONSUMIDOR_FINAL); setMetodoPago("efectivo");
+    setSplit(false); setPagos([{ metodoPago: "efectivo", monto: "" }, { metodoPago: "transferencia", monto: "" }]); setPagaCon("");
     setResult(null);
     api.get("/products", { q: "", limit: 60 }).then(setResults).catch(() => {});
     setTimeout(() => searchRef.current?.focus(), 50);
@@ -103,6 +133,7 @@ export default function NewSale() {
       const r = await api.post("/sales", {
         items: cart.map((i) => ({ productId: i.id, cantidad: i.cantidad, descuentoPct: Number(i.descuentoPct) || 0 })),
         metodoPago, nota,
+        ...(split && { pagos: pagosNum }),
         descuento: { tipo: desc.tipo, valor: descValor },
         factura: { emitir: facturar, receptor: receptorPayload(receptor) },
       });
@@ -110,6 +141,7 @@ export default function NewSale() {
       setResult(r);
     } catch (e) {
       toast.error(e.message);
+      if (e.data?.cajaCerrada) { setConfirmOpen(false); loadCaja(); }
     } finally {
       setSaving(false);
     }
@@ -121,6 +153,7 @@ export default function NewSale() {
         <div className="page-header compact">
           <div><h2 className="page-title">Nueva venta</h2><p className="page-subtitle">Escaneá el código o buscá el producto. <kbd>Enter</kbd> agrega · <kbd>F2</kbd> cobra</p></div>
         </div>
+        {cajaBloquea && <QuickOpenCash onOpened={loadCaja} />}
         <input
           ref={searchRef}
           className="form-input search-big"
@@ -178,14 +211,44 @@ export default function NewSale() {
 
         {cart.length > 0 && (
           <div className="cart-foot">
-            <div className="form-label mb-6">Medio de pago</div>
-            <div className="pay-grid">
-              {PAYMENT_METHODS.map((m) => (
-                <button key={m.value} type="button" className={`pay-btn ${metodoPago === m.value ? "active" : ""}`} onClick={() => setMetodoPago(m.value)}>
-                  <span aria-hidden>{m.icon}</span> {m.label}
-                </button>
-              ))}
+            <div className="row-between mb-6">
+              <span className="form-label">Medio de pago</span>
+              <button type="button" className="link-btn fs-13" onClick={() => setSplit((v) => !v)}>{split ? "Un solo medio" : "Dividir pago"}</button>
             </div>
+            {!split ? (
+              <div className="pay-grid">
+                {PAYMENT_METHODS.map((m) => (
+                  <button key={m.value} type="button" className={`pay-btn ${metodoPago === m.value ? "active" : ""}`} onClick={() => setMetodoPago(m.value)}>
+                    <span aria-hidden>{m.icon}</span> {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div>
+                {pagos.map((p, i) => (
+                  <div key={i} className="split-row">
+                    <select className="form-select sm" value={p.metodoPago} onChange={(e) => setPago(i, { metodoPago: e.target.value })}>
+                      {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <input className="form-input sm" type="number" min="0" step="0.01" placeholder="$" value={p.monto} onChange={(e) => setMontoPago(i, e.target.value)} />
+                    {pagos.length > 2 ? <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPagos(pagos.filter((_, j) => j !== i))}>✕</button> : <span />}
+                  </div>
+                ))}
+                <div className="row-between fs-13">
+                  {pagos.length < 4 ? <button type="button" className="link-btn" onClick={() => setPagos([...pagos, { metodoPago: "debito", monto: "" }])}>+ otro medio</button> : <span />}
+                  <span className={Math.abs(pagosFalta) > 0.005 ? "text-danger fw-600" : "text-success fw-600"}>
+                    {Math.abs(pagosFalta) <= 0.005 ? "✓ Cubre el total" : pagosFalta > 0 ? `Falta ${money(pagosFalta)}` : `Sobra ${money(-pagosFalta)}`}
+                  </span>
+                </div>
+              </div>
+            )}
+            {efectivoACobrar > 0 && (
+              <div className="change-box">
+                <span className="text-muted nowrap">Paga con $</span>
+                <input className="form-input sm" type="number" min="0" placeholder={String(efectivoACobrar)} value={pagaCon} onChange={(e) => setPagaCon(e.target.value)} aria-label="Paga con" />
+                {vuelto !== null && <strong className={vuelto < 0 ? "text-danger" : "text-success"}>{vuelto < 0 ? `Faltan ${money(-vuelto)}` : `Vuelto ${money(vuelto)}`}</strong>}
+              </div>
+            )}
 
             <div className="inline-fields mt-12">
               <span className="form-label">Descuento general</span>
@@ -244,7 +307,8 @@ export default function NewSale() {
           {descMonto > 0 && <div className="row-between line text-success"><span>Descuento general</span><span>− {money(descMonto)}</span></div>}
           <div className="row-between total-line mt-12"><span>Total</span><span>{money(total)}</span></div>
           <div className="confirm-meta">
-            <Badge>{paymentLabel(metodoPago)}</Badge>
+            {split ? pagosNum.map((p) => <Badge key={p.metodoPago}>{paymentLabel(p.metodoPago)} {money(p.monto)}</Badge>) : <Badge>{paymentLabel(metodoPago)}</Badge>}
+            {vuelto > 0 && <Badge kind="success">Vuelto {money(vuelto)}</Badge>}
             {facturar ? <Badge kind="accent">Factura {letraReceptor(receptor, fiscal)} · {receptor.tipo === "cf" ? "Consumidor final" : receptor.nombre}</Badge> : isBilling && <Badge kind="warning">Sin factura</Badge>}
           </div>
         </Modal>
@@ -252,6 +316,30 @@ export default function NewSale() {
 
       {result && <SaleDone result={result} onNew={reset} />}
     </div>
+  );
+}
+
+function QuickOpenCash({ onOpened }) {
+  const [monto, setMonto] = useState("");
+  const [busy, setBusy] = useState(false);
+  const open = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post("/cash/abrir", { montoInicial: Number(monto) || 0 });
+      toast.success("Caja abierta");
+      onOpened();
+    } catch (err) {
+      toast.error(err.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="alert-banner alert-warning" onSubmit={open}>
+      💵 <strong>La caja está cerrada.</strong> Para vender, abrila con el efectivo inicial:
+      <input className="form-input sm" style={{ width: 120 }} type="number" min="0" step="0.01" placeholder="$ 0" value={monto} onChange={(e) => setMonto(e.target.value)} />
+      <button className="btn btn-sm btn-primary" disabled={busy}>Abrir caja</button>
+    </form>
   );
 }
 
@@ -275,7 +363,9 @@ function SaleDone({ result, onNew }) {
       }
     >
       <div className="done-total">{money(sale.total)}</div>
-      <p className="text-center text-muted">{paymentLabel(sale.metodo_pago)} · stock actualizado</p>
+      <p className="text-center text-muted">
+        {sale.payments.length > 1 ? sale.payments.map((p) => `${paymentLabel(p.metodo_pago)} ${money(p.monto)}`).join(" + ") : paymentLabel(sale.metodo_pago)} · stock actualizado
+      </p>
       {invoice && ok && (
         <div className="alert-banner alert-success mt-12">
           ✅ {CBTE_NOMBRES[invoice.tipo_cbte]} {cbteNumero(invoice.pto_vta, invoice.numero)} autorizada. CAE {invoice.cae}

@@ -1,11 +1,13 @@
 const { initDb, getDb } = require("../src/db");
 const installer = require("../src/installer");
 
-async function freshDb(mode = "local") {
+async function freshDb(mode = "local", { cajaAbierta = true } = {}) {
   initDb(":memory:");
   await installer.install({ mode, negocio: "Test", techPin: "tecnico1", admin: { nombre: "Admin", usuario: "admin", password: "clave123" } });
   const user = getDb().prepare("SELECT id, nombre, usuario, rol FROM users WHERE usuario = 'admin'").get();
-  return { user, ip: "127.0.0.1" };
+  const ctx = { user, ip: "127.0.0.1" };
+  if (cajaAbierta) require("../src/services/cash").openSession({ montoInicial: 1000 }, ctx);
+  return ctx;
 }
 
 function addProduct({ codigo = "P1", precio = 100, stock = 10, alicuota = 21 } = {}) {

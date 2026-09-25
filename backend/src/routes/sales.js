@@ -17,7 +17,10 @@ function buildFilter(query) {
   if (desde) { where.push("s.fecha >= ?"); params.push(desde); }
   if (hasta) { where.push("s.fecha <= ?"); params.push(hasta); }
   if (query.estado) { where.push("s.estado = ?"); params.push(oneOf(query.estado, ["completada", "anulada"], { name: "Estado" })); }
-  if (query.metodoPago) { where.push("s.metodo_pago = ?"); params.push(oneOf(query.metodoPago, sales.PAYMENT_METHODS, { name: "Método de pago" })); }
+  if (query.metodoPago) {
+    where.push("s.id IN (SELECT sale_id FROM sale_payments WHERE metodo_pago = ?)");
+    params.push(oneOf(query.metodoPago, sales.PAYMENT_METHODS, { name: "Método de pago" }));
+  }
   if (query.q) {
     where.push("s.id IN (SELECT sale_id FROM sale_items WHERE nombre LIKE ? ESCAPE '\\' OR codigo LIKE ? ESCAPE '\\')");
     const t = likeTerm(str(query.q, { max: 100 }));
@@ -29,6 +32,7 @@ function buildFilter(query) {
 const SALE_LIST_SQL = `
   SELECT s.*,
     (SELECT group_concat(nombre || ' x' || cantidad, ', ') FROM sale_items WHERE sale_id = s.id) AS resumen,
+    (SELECT group_concat(metodo_pago || ':' || monto, ';') FROM sale_payments WHERE sale_id = s.id) AS pagos,
     (SELECT estado FROM invoices WHERE sale_id = s.id AND tipo_cbte IN (1,6,11) AND estado <> 'cancelada' ORDER BY id DESC LIMIT 1) AS factura_estado
   FROM sales s`;
 
@@ -52,6 +56,7 @@ router.get("/export.csv", (req, res) => {
     { label: "Vendedor", value: "usuario_nombre" },
     { label: "Productos", value: "resumen" },
     { label: "Método de pago", value: "metodo_pago" },
+    { label: "Detalle de pagos", value: (r) => (r.pagos || "").replace(/;/g, " + ") },
     { label: "Subtotal", value: "subtotal" },
     { label: "Descuento", value: "descuento_monto" },
     { label: "Total", value: "total" },

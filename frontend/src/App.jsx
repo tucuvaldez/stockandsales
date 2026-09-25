@@ -15,9 +15,11 @@ import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
 import PrintSale from "./pages/PrintSale";
 import PrintInvoice from "./pages/PrintInvoice";
+import PrintCash from "./pages/PrintCash";
+import Cash from "./pages/Cash";
 
 const PAGES = {
-  "/": Dashboard, "/nueva-venta": NewSale, "/ventas": Sales, "/productos": Products, "/movimientos": Movements,
+  "/": Dashboard, "/nueva-venta": NewSale, "/caja": Cash, "/ventas": Sales, "/productos": Products, "/movimientos": Movements,
   "/comprobantes": Invoices, "/clientes": Clients, "/usuarios": Users, "/actividad": Activity, "/configuracion": Settings,
 };
 
@@ -45,6 +47,7 @@ export default function App() {
     <Routes>
       <Route path="/imprimir/venta/:id" element={<PrintSale />} />
       <Route path="/imprimir/comprobante/:id" element={<PrintInvoice />} />
+      <Route path="/imprimir/caja/:id" element={<PrintCash />} />
       <Route element={<Layout />}>
         {allowed.map((n) => {
           const Page = PAGES[n.to];

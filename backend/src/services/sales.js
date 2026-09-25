@@ -4,8 +4,9 @@ const { badRequest, notFound, conflict } = require("../errors");
 const { num, str, oneOf, id } = require("../validate");
 const { changeStock } = require("./stock");
 const { audit } = require("../audit");
+const cash = require("./cash");
 
-const PAYMENT_METHODS = ["efectivo", "debito", "credito", "transferencia", "qr", "otro"];
+const { PAYMENT_METHODS } = cash;
 
 function parseSaleInput(input) {
   const rawItems = Array.isArray(input.items) ? input.items : [];
@@ -24,7 +25,18 @@ function parseSaleInput(input) {
   }
 
   const descTipo = oneOf(input.descuento?.tipo, ["pct", "monto"], { name: "Tipo de descuento", fallback: "pct" });
+  let pagos = null;
+  if (Array.isArray(input.pagos) && input.pagos.length) {
+    if (input.pagos.length > 6) throw badRequest("Demasiados medios de pago");
+    pagos = input.pagos
+      .map((p) => ({
+        metodoPago: oneOf(p.metodoPago, PAYMENT_METHODS, { name: "Medio de pago" }),
+        monto: round2(num(p.monto, { name: "Monto del pago", min: 0, max: 1e12, required: true })),
+      }))
+      .filter((p) => p.monto > 0);
+  }
   return {
+    pagos,
     items: [...merged.values()],
     metodoPago: oneOf(input.metodoPago, PAYMENT_METHODS, { name: "Método de pago", fallback: "efectivo" }),
     nota: str(input.nota, { name: "Nota", max: 300 }),
@@ -50,6 +62,21 @@ function quote(db, parsed) {
 
 const quoteSale = (input) => quote(getDb(), parseSaleInput(input));
 
+// Pagos de la venta: uno solo por el total, o varios (pago dividido) que tienen que sumar exactamente el total.
+function resolvePayments(parsed, total) {
+  if (!parsed.pagos) return total > 0 ? [{ metodoPago: parsed.metodoPago, monto: total }] : [];
+  const byMethod = new Map();
+  for (const p of parsed.pagos) byMethod.set(p.metodoPago, round2((byMethod.get(p.metodoPago) || 0) + p.monto));
+  const payments = [...byMethod.entries()].map(([metodoPago, monto]) => ({ metodoPago, monto }));
+  const suma = round2(payments.reduce((s, p) => s + p.monto, 0));
+  if (Math.abs(suma - total) > 0.005) {
+    throw badRequest(`Los pagos suman $${suma.toLocaleString("es-AR")} pero el total es $${total.toLocaleString("es-AR")}`);
+  }
+  return payments;
+}
+
+const paymentLabelFor = (payments, fallback) => (payments.length > 1 ? "mixto" : payments[0]?.metodoPago || fallback);
+
 /**
  * Registra una venta. Los precios se toman de la base, nunca del navegador,
  * y todo (venta + items + stock + movimientos) se guarda en una sola transacción.
@@ -59,7 +86,10 @@ function createSale(input, ctx) {
 
   return tx((db) => {
     const { lines, subtotal, descMonto, total } = quote(db, parsed);
-    const { metodoPago, nota, descTipo, descValor, clientId } = parsed;
+    const { nota, descTipo, descValor, clientId } = parsed;
+    const payments = resolvePayments(parsed, total);
+    const metodoPago = paymentLabelFor(payments, parsed.metodoPago);
+    const session = cash.sessionForOperation("vender");
 
     if (clientId && !db.prepare("SELECT 1 FROM clients WHERE id = ? AND activo = 1").get(clientId)) {
       throw badRequest("Cliente no encontrado");
@@ -67,10 +97,15 @@ function createSale(input, ctx) {
 
     const { lastInsertRowid: saleId } = db
       .prepare(
-        `INSERT INTO sales (fecha, user_id, usuario_nombre, client_id, metodo_pago, subtotal, descuento_tipo, descuento_valor, descuento_monto, total, nota)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO sales (fecha, user_id, usuario_nombre, client_id, metodo_pago, subtotal, descuento_tipo, descuento_valor, descuento_monto, total, nota, cash_session_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(nowIso(), ctx.user.id, ctx.user.nombre, clientId, metodoPago, subtotal, descTipo, descValor, descMonto, total, nota);
+      .run(nowIso(), ctx.user.id, ctx.user.nombre, clientId, metodoPago, subtotal, descTipo, descValor, descMonto, total, nota, session?.id ?? null);
+
+    for (const pay of payments) {
+      db.prepare("INSERT INTO sale_payments (sale_id, metodo_pago, monto) VALUES (?, ?, ?)").run(saleId, pay.metodoPago, pay.monto);
+      cash.addEntry({ sessionId: session?.id, tipo: "venta", metodoPago: pay.metodoPago, monto: pay.monto, motivo: `Venta #${saleId}`, refTipo: "venta", refId: Number(saleId), user: ctx.user });
+    }
 
     const insertItem = db.prepare(
       `INSERT INTO sale_items (sale_id, product_id, codigo, nombre, talle, cantidad, precio_unitario, descuento_pct, alicuota_iva, subtotal)
@@ -101,6 +136,7 @@ function getSale(saleId) {
   sale.invoices = db
     .prepare("SELECT id, tipo_cbte, pto_vta, numero, estado, imp_total, cae, return_id, asociado_id, mensajes, fecha FROM invoices WHERE sale_id = ? ORDER BY id")
     .all(saleId);
+  sale.payments = db.prepare("SELECT metodo_pago, monto FROM sale_payments WHERE sale_id = ? ORDER BY id").all(saleId);
   sale.client = sale.client_id ? db.prepare("SELECT * FROM clients WHERE id = ?").get(sale.client_id) : null;
   return sale;
 }
@@ -112,6 +148,10 @@ function ensureNoPendingInvoice(saleId) {
   }
 }
 
+// Si la venta tuvo algo en efectivo se devuelve en efectivo; si no, por el mismo medio con que se pagó.
+const defaultRefundMethod = (sale) =>
+  sale.payments.some((p) => p.metodo_pago === "efectivo") ? "efectivo" : sale.payments[0]?.metodo_pago || "efectivo";
+
 /** Devolución parcial o total. No se puede devolver más de lo vendido. */
 function returnItems(saleId, input, ctx) {
   const motivo = str(input.motivo, { name: "Motivo", max: 300 });
@@ -121,6 +161,8 @@ function returnItems(saleId, input, ctx) {
     const sale = getSale(saleId);
     if (sale.estado === "anulada") throw badRequest("La venta está anulada");
     ensureNoPendingInvoice(saleId);
+    const metodoReembolso = oneOf(input.metodoReembolso, PAYMENT_METHODS, { name: "Medio de reintegro", fallback: defaultRefundMethod(sale) });
+    const session = cash.sessionForOperation("registrar la devolución");
 
     const factor = discountFactor(sale);
     const lines = [];
@@ -152,8 +194,11 @@ function returnItems(saleId, input, ctx) {
       });
     }
     db.prepare("UPDATE sales SET total_devuelto = round(total_devuelto + ?, 2) WHERE id = ?").run(total, saleId);
+    if (total > 0) {
+      cash.addEntry({ sessionId: session?.id, tipo: "devolucion", metodoPago: metodoReembolso, monto: -total, motivo: `Devolución venta #${saleId}`, refTipo: "venta", refId: saleId, user: ctx.user });
+    }
 
-    audit(ctx, "venta.devolucion", { entidad: "venta", entidadId: saleId, detalle: { total, motivo } });
+    audit(ctx, "venta.devolucion", { entidad: "venta", entidadId: saleId, detalle: { total, motivo, metodoReembolso } });
     return { returnId: Number(returnId), total, items: lines.map((l) => ({ saleItemId: l.item.id, cantidad: l.cantidad, monto: l.monto })) };
   });
 }
@@ -166,6 +211,7 @@ function annulSale(saleId, input, ctx) {
     const sale = getSale(saleId);
     if (sale.estado === "anulada") throw badRequest("La venta ya estaba anulada");
     ensureNoPendingInvoice(saleId);
+    const session = cash.sessionForOperation("anular la venta");
 
     for (const item of sale.items) {
       const restante = item.cantidad - item.cantidad_devuelta;
@@ -175,6 +221,16 @@ function annulSale(saleId, input, ctx) {
           motivo: `Anulación venta #${saleId} - ${motivo}`, refTipo: "venta", refId: saleId, user: ctx.user,
         });
       }
+    }
+    // Se reintegra lo que quedaba cobrado, repartido entre los medios con que se pagó.
+    const pendiente = round2(sale.total - sale.total_devuelto);
+    if (pendiente > 0 && sale.payments.length) {
+      let resto = pendiente;
+      sale.payments.forEach((pay, i) => {
+        const monto = i === sale.payments.length - 1 ? resto : round2((pay.monto / sale.total) * pendiente);
+        resto = round2(resto - monto);
+        if (monto > 0) cash.addEntry({ sessionId: session?.id, tipo: "anulacion", metodoPago: pay.metodo_pago, monto: -monto, motivo: `Anulación venta #${saleId}`, refTipo: "venta", refId: saleId, user: ctx.user });
+      });
     }
     db.prepare("UPDATE sales SET estado = 'anulada', anulada_at = ?, anulada_por = ?, motivo_anulacion = ? WHERE id = ?")
       .run(nowIso(), ctx.user.nombre, motivo, saleId);

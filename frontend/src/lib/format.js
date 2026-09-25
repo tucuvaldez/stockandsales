@@ -26,7 +26,7 @@ export const PAYMENT_METHODS = [
   { value: "qr", label: "QR / Billetera", icon: "📱" },
   { value: "otro", label: "Otro", icon: "•" },
 ];
-export const paymentLabel = (v) => PAYMENT_METHODS.find((p) => p.value === v)?.label || v;
+export const paymentLabel = (v) => (v === "mixto" ? "Mixto" : PAYMENT_METHODS.find((p) => p.value === v)?.label || v);
 
 export const MOVEMENT_TYPES = {
   alta: { label: "Alta", badge: "neutral" },

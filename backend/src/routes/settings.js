@@ -13,6 +13,7 @@ const router = express.Router();
 const adminOnly = requireRole("admin");
 
 const NEGOCIO_KEYS = ["negocio_nombre", "negocio_direccion", "negocio_telefono", "negocio_pie_ticket"];
+const cajaObligatoria = () => settings.get("caja_obligatoria", "1") === "1";
 
 function certInfo() {
   const cert = settings.get("afip_cert");
@@ -26,7 +27,7 @@ function certInfo() {
 
 // Datos que necesita cualquier usuario logueado (encabezado de tickets y facturas).
 router.get("/negocio", (req, res) => {
-  const out = { ...settings.getMany(NEGOCIO_KEYS), modo: settings.getMode() };
+  const out = { ...settings.getMany(NEGOCIO_KEYS), modo: settings.getMode(), cajaObligatoria: cajaObligatoria() };
   if (settings.isBilling()) {
     const cfg = afip.fiscalConfig();
     out.fiscal = {
@@ -46,7 +47,8 @@ router.put("/negocio", adminOnly, (req, res) => {
     negocio_pie_ticket: str(req.body.pieTicket, { name: "Pie del ticket", max: 300 }),
   };
   for (const [k, v] of Object.entries(values)) settings.set(k, v);
-  audit(req, "config.negocio", { detalle: values });
+  if (typeof req.body.cajaObligatoria === "boolean") settings.set("caja_obligatoria", req.body.cajaObligatoria ? "1" : "0");
+  audit(req, "config.negocio", { detalle: { ...values, cajaObligatoria: cajaObligatoria() } });
   res.json({ ok: true });
 });
 

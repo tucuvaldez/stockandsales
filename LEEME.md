@@ -9,6 +9,14 @@ Sistema de stock y ventas para tu negocio.
 - **Cerrar:** podés cerrar el navegador tranquilo; el sistema sigue guardando todo.
   Si necesitás apagarlo del todo: `DETENER.bat`.
 
+## Caja
+
+1. **Al empezar el día:** en **Caja**, contá el cambio y tocá **Abrir caja**. Sin caja abierta no se puede vender (se puede desactivar en Configuración).
+2. **Durante el día:**
+   - Si pagás algo (proveedor, flete, compras) o sacás plata, usá **Pago / gasto / retiro** e indicá si fue en **efectivo** o por **transferencia**. Solo lo que sale en efectivo se descuenta de la caja.
+   - Si un cliente paga una parte en efectivo y otra por transferencia, en la venta tocá **Dividir pago**.
+3. **Al cerrar:** contá todo el efectivo y tocá **Cerrar caja**. El sistema te dice si sobra o falta, y podés imprimir el cierre.
+
 ## Atajos en "Nueva venta"
 
 | Tecla | Acción |

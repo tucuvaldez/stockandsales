@@ -10,6 +10,7 @@ import { ROLES } from "../lib/format";
 export const NAV = [
   { to: "/", label: "Resumen", icon: "📊", roles: ["admin", "supervisor"], end: true },
   { to: "/nueva-venta", label: "Nueva venta", icon: "🛒" },
+  { to: "/caja", label: "Caja", icon: "💵" },
   { to: "/ventas", label: "Ventas", icon: "🧾" },
   { to: "/productos", label: "Productos", icon: "📦" },
   { to: "/movimientos", label: "Movimientos de stock", icon: "🔁", roles: ["admin", "supervisor"] },

@@ -54,6 +54,7 @@ function createApp({ logger = console } = {}) {
   api.use("/sales", require("./routes/sales"));
   api.use("/movements", requireRole("admin", "supervisor"), require("./routes/movements"));
   api.use("/stats", requireRole("admin", "supervisor"), require("./routes/stats"));
+  api.use("/cash", require("./routes/cash"));
   api.use("/users", require("./routes/users"));
   api.use("/settings", require("./routes/settings"));
   api.use("/clients", billingOnly, require("./routes/clients"));

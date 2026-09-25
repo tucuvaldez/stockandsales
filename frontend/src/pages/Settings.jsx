@@ -31,7 +31,7 @@ function NegocioTab() {
   const [f, setF] = useState(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (negocio) setF({ nombre: negocio.negocio_nombre, direccion: negocio.negocio_direccion, telefono: negocio.negocio_telefono, pieTicket: negocio.negocio_pie_ticket });
+    if (negocio) setF({ nombre: negocio.negocio_nombre, direccion: negocio.negocio_direccion, telefono: negocio.negocio_telefono, pieTicket: negocio.negocio_pie_ticket, cajaObligatoria: negocio.cajaObligatoria });
   }, [negocio]);
   if (!f) return <Loader />;
 
@@ -49,6 +49,10 @@ function NegocioTab() {
       <Field label="Dirección"><input className="form-input" value={f.direccion} onChange={(e) => setF({ ...f, direccion: e.target.value })} maxLength={200} /></Field>
       <Field label="Teléfono"><input className="form-input" value={f.telefono} onChange={(e) => setF({ ...f, telefono: e.target.value })} maxLength={50} /></Field>
       <Field label="Texto al pie del ticket" hint="Ej: ¡Gracias por su compra! Cambios dentro de los 30 días."><input className="form-input" value={f.pieTicket} onChange={(e) => setF({ ...f, pieTicket: e.target.value })} maxLength={300} /></Field>
+      <label className="check mb-12">
+        <input type="checkbox" checked={!!f.cajaObligatoria} onChange={(e) => setF({ ...f, cajaObligatoria: e.target.checked })} />
+        Exigir caja abierta para vender (recomendado: así cada venta queda en un arqueo)
+      </label>
       <div className="form-actions"><button className="btn btn-primary" disabled={busy}>{busy ? "Guardando..." : "Guardar"}</button></div>
     </form>
   );

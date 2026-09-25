@@ -139,7 +139,7 @@ function SaleDetail({ id, onClose, onChanged }) {
         <div className="info-strip">
           <span><span className="text-muted">Fecha</span> {dateTime(sale.fecha)}</span>
           <span><span className="text-muted">Vendedor</span> {sale.usuario_nombre}</span>
-          <span><span className="text-muted">Pago</span> {paymentLabel(sale.metodo_pago)}</span>
+          <span><span className="text-muted">Pago</span> {sale.payments.length > 1 ? sale.payments.map((p) => `${paymentLabel(p.metodo_pago)} ${money(p.monto)}`).join(" + ") : paymentLabel(sale.metodo_pago)}</span>
           {sale.nota && <span><span className="text-muted">Nota</span> {sale.nota}</span>}
         </div>
 
@@ -204,6 +204,7 @@ function SaleDetail({ id, onClose, onChanged }) {
           message={
             <>
               <p>Se repone el stock de lo que no se devolvió y la venta queda en el historial marcada como anulada.</p>
+              <p className="mt-8">Se registra en la caja la devolución de {money(sale.total - sale.total_devuelto)} por el mismo medio con que se cobró.</p>
               {factura && <p className="mt-8"><strong>Se emitirá una Nota de Crédito</strong> por {money(sale.total - sale.total_devuelto)}.</p>}
             </>
           }
@@ -228,6 +229,7 @@ function ReturnModal({ sale, onClose, onDone }) {
   const [qty, setQty] = useState({});
   const [motivo, setMotivo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [metodo, setMetodo] = useState(sale.payments.some((p) => p.metodo_pago === "efectivo") ? "efectivo" : sale.payments[0]?.metodo_pago || "efectivo");
   const factor = sale.subtotal > 0 ? sale.total / sale.subtotal : 0;
   const factura = sale.invoices.some((i) => [1, 6, 11].includes(i.tipo_cbte) && i.estado === "autorizada");
 
@@ -239,6 +241,7 @@ function ReturnModal({ sale, onClose, onDone }) {
     try {
       const r = await api.post(`/sales/${sale.id}/devolucion`, {
         motivo,
+        metodoReembolso: metodo,
         items: Object.entries(qty).filter(([, c]) => c > 0).map(([saleItemId, cantidad]) => ({ saleItemId: Number(saleItemId), cantidad })),
       });
       toast.success(`Devolución registrada: ${money(r.total)}`);
@@ -277,6 +280,11 @@ function ReturnModal({ sale, onClose, onDone }) {
           </div>
         );
       })}
+      <Field label="¿Cómo se le devuelve el dinero?">
+        <select className="form-select" value={metodo} onChange={(e) => setMetodo(e.target.value)}>
+          {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+      </Field>
       <Field label="Motivo (opcional)"><input className="form-input" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={300} placeholder="Ej: talle incorrecto" /></Field>
       {any && factura && <div className="alert-banner alert-info">Se emitirá una Nota de Crédito por {money(monto)}.</div>}
     </Modal>
