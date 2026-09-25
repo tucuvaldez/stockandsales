@@ -11,6 +11,10 @@ Ideal para tiendas pequeñas, kioscos, emprendimientos y usuarios que solo neces
 - historial
 - movimientos
 - ajustes de inventario
+- usuarios con roles
+- control por permisos sin facturas ni rendiciones legales
+
+El modo local conserva los mismos accesos, pantallas y usos del sistema, pero sin exigir facturación, libros fiscales ni arca.
 
 ## Modo facturación
 
@@ -20,6 +24,7 @@ Ideal para clientes que necesitan:
 - comprobantes
 - clientes
 - emisión fiscal
+- control legal adicional
 
 ## Instalación rápida
 
