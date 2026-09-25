@@ -204,6 +204,7 @@ th.text-right, td.text-right { text-align: right; }
 .inline-fields { display: flex; align-items: center; gap: 8px; }
 .inline-fields .form-label { flex: 1; }
 .inline-fields .form-select { width: 58px; } .inline-fields .form-input { width: 100px; }
+.inline-fields.wide .form-input { width: auto; flex: 1; min-width: 0; }
 .billing-box { margin-top: 12px; padding: 12px; background: var(--surface2); border-radius: var(--radius-sm); }
 .receptor { margin-top: 10px; }
 .receptor-fields { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }

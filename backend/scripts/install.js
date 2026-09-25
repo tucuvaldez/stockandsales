@@ -32,6 +32,13 @@ async function main() {
 
   const negocio = await p.ask("\n  Nombre del negocio", "Mi negocio");
 
+  const { RUBROS } = require("../src/rubros");
+  const rubros = Object.entries(RUBROS);
+  console.log("\n  ¿Qué tipo de negocio es? (adapta ejemplos y sugiere categorías; se cambia después)\n");
+  rubros.forEach(([, r], i) => console.log(`   [${i + 1}] ${r.nombre}`));
+  const rubroIdx = Number(await p.askChoice("\n  Opción", rubros.map((_, i) => String(i + 1)))) - 1;
+  const rubro = rubros[rubroIdx][0];
+
   console.log("\n  CLAVE DE TÉCNICO: la necesitás para cambiar el modo, restablecer contraseñas");
   console.log("  o restaurar copias. NO se la des al cliente. Guardala en un lugar seguro.");
   const techPin = await p.askNewSecret("  Clave de técnico (mín. 6 caracteres)", (v) => (/^\S{6,}$/.test(v) ? null : "Mínimo 6 caracteres, sin espacios."));
@@ -46,7 +53,7 @@ async function main() {
   }
   const password = await p.askNewSecret("  Contraseña (mín. 6 caracteres)", (v) => (v.length >= 6 ? null : "Mínimo 6 caracteres."));
 
-  const { adminCode, techCode } = await installer.install({ mode, negocio, techPin, admin: { nombre, usuario, password } });
+  const { adminCode, techCode } = await installer.install({ mode, negocio, techPin, rubro, admin: { nombre, usuario, password } });
 
   p.title("CÓDIGOS DE RECUPERACIÓN - anotalos ahora");
   console.log("  Se muestran UNA sola vez. Sin ellos no hay forma de recuperar una clave olvidada.\n");

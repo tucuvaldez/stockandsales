@@ -18,6 +18,7 @@ El zip trae la interfaz compilada y todos los componentes: en la PC del cliente 
 3. Doble clic en **`INSTALAR.bat`** y responder:
    - **Modo**: `1` = Local (solo registro, sin facturación) · `2` = Facturación electrónica ARCA.
    - Nombre del negocio.
+   - **Tipo de negocio** (ropa, almacén/kiosco, juguetería, regalería, ferretería, librería u otro): adapta ejemplos, el nombre del campo variable (Talle, Presentación, Medida…) y sugiere categorías. Se cambia después en *Configuración → Negocio*.
    - **Clave de técnico**: guardala vos, no se la des al cliente (ver punto 4).
    - Usuario y contraseña del **administrador** (el dueño).
    - Si arranca solo al prender la PC.

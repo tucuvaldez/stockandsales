@@ -32,7 +32,7 @@ export function RecoveryCodeCard({ status, onChanged }) {
       <h3 className="card-title">Código de recuperación</h3>
       <p className="fs-13 text-muted mb-12">
         {status?.existe
-          ? `Hay un código vigente, generado el ${dateTime(status.generado)}. Por seguridad no se puede volver a ver: si se perdió, generá uno nuevo.`
+          ? `Hay un código vigente, generado el ${dateTime(status.generado)} — por seguridad no se puede volver a ver: si se perdió, generá uno nuevo.`
           : "Todavía no hay un código de recuperación. Generalo y guardalo en papel: sirve para entrar si te olvidás la contraseña."}
       </p>
       {code ? <RecoveryCodeBox code={code} /> : <button className="btn btn-secondary" onClick={() => setConfirm(true)}>Generar código nuevo</button>}

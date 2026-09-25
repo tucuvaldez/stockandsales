@@ -37,7 +37,7 @@ const COLUMN_ALIASES = {
   nombre: ["nombre", "producto", "descripcioncorta", "detalle"],
   descripcion: ["descripcion", "desc", "observaciones"],
   categoria: ["categoria", "rubro", "familia"],
-  talle: ["talle", "medida", "tamano", "variante"],
+  talle: ["variante", "talle", "medida", "tamano", "presentacion", "color", "modelo"],
   precio: ["precio", "precioventa", "pventa", "venta", "preciofinal"],
   precioCompra: ["preciocompra", "costo", "preciocosto", "pcosto", "compra"],
   stock: ["stock", "cantidad", "existencia", "unidades"],
@@ -64,9 +64,10 @@ export function mapProductRows(rows) {
 }
 
 export const PRODUCT_TEMPLATE =
-  "﻿codigo;nombre;categoria;talle;precio;precioCompra;stock;stockMinimo;iva\r\n" +
-  "ART-001;Remera básica;Ropa;M;15000;8000;10;2;21\r\n" +
-  "779123456789;Gaseosa 1,5L;Bebidas;;2500,50;1600;24;6;21\r\n";
+  "\uFEFFcodigo;nombre;categoria;variante;precio;precioCompra;stock;stockMinimo;iva\r\n" +
+  "779123456789;Yerba mate;Almacén;1 kg;4500;3000;20;5;21\r\n" +
+  "JUG-001;Rompecabezas 500 piezas;Juguetería;;15000;9000;6;2;21\r\n" +
+  "ART-002;Remera básica;Ropa;M;12000,50;7000;10;2;21\r\n";
 
 // Genera un CSV compatible con Excel en español.
 export function toCsv(rows, columns) {

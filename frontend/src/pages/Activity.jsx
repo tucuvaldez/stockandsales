@@ -15,6 +15,8 @@ const ACCIONES = {
   "backup.crear": "Copia de seguridad", "backup.descargar": "Descarga de copia",
   "sistema.instalar": "Instalación", "sistema.cambiar_modo": "Cambio de modo", "sistema.restablecer_clave": "Contraseña restablecida por técnico",
   "config.impresion": "Configuración de impresión y PDF",
+  "categoria.crear": "Nueva categoría", "categoria.renombrar": "Categoría renombrada",
+  "categoria.unificar": "Categorías unificadas", "categoria.eliminar": "Categoría eliminada",
   "config.codigo_recuperacion": "Nuevo código de recuperación",
   "usuario.recuperar_clave": "Contraseña recuperada con código",
   "login.recuperacion_fallida": "Intento fallido de recuperación",

@@ -25,6 +25,11 @@ Sistema de stock y ventas para tu negocio.
 - En **Configuración → Impresión y PDF** elegís qué se imprime: nada, sólo lo que pidas o todo automáticamente.
 - Si activás **imprimir directo**, al abrir StockLocal desde el ícono las impresiones salen por la impresora sin preguntar.
 
+## Productos y categorías
+
+- En **Productos → Categorías** creás, renombrás o eliminás categorías (Juguetería, Almacén, Regalería, lo que necesites). Al crear un producto también podés elegir **+ Nueva categoría**.
+- El campo variable (Talle, Presentación, Medida, Color…) se configura en **Configuración → Negocio**, o se oculta si no lo usás.
+
 ## Atajos en "Nueva venta"
 
 | Tecla | Acción |

@@ -11,7 +11,7 @@ function validatePin(pin) {
   if (!/^\S{6,}$/.test(pin || "")) throw new Error("La clave de técnico debe tener al menos 6 caracteres, sin espacios");
 }
 
-async function install({ mode, negocio, techPin, admin }) {
+async function install({ mode, negocio, techPin, admin, rubro = "otro" }) {
   if (isInstalled()) throw new Error("El sistema ya está instalado");
   if (!settings.MODES.includes(mode)) throw new Error("Modo inválido");
   validatePin(techPin);
@@ -25,6 +25,9 @@ async function install({ mode, negocio, techPin, admin }) {
     settings.set("installed_at", new Date().toISOString());
     settings.set("tech_pin_hash", pinHash);
     settings.set("negocio_nombre", negocio || "Mi negocio");
+    const { RUBROS, rubroOrDefault } = require("./rubros");
+    settings.set("rubro", rubroOrDefault(rubro));
+    for (const c of RUBROS[rubroOrDefault(rubro)].categorias) db.prepare("INSERT OR IGNORE INTO categories (nombre) VALUES (?)").run(c);
     settings.getJwtSecret();
     db.prepare("INSERT INTO users (nombre, usuario, password_hash, rol) VALUES (?, ?, ?, 'admin')").run(admin.nombre || "Administrador", admin.usuario, passHash);
     audit(null, "sistema.instalar", { detalle: { mode } });

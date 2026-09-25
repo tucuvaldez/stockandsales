@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { Badge, Confirm, Empty, Field, Loader, Modal, useDebounced } from "../components/ui";
 import { PRODUCT_TEMPLATE, mapProductRows, parseCsv, saveText, toCsv } from "../lib/csv";
 import { money, plural } from "../lib/format";
+import { useProductConfig } from "../lib/useProductConfig";
 
 const EMPTY = { codigo: "", nombre: "", descripcion: "", categoria: "", talle: "", precio: "", precioCompra: "", stock: "", stockMinimo: "", alicuotaIva: 21 };
 
@@ -24,6 +25,8 @@ export default function Products() {
   const [stockOf, setStockOf] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
+  const [catsOpen, setCatsOpen] = useState(false);
+  const { varianteLabel, usarVariante } = useProductConfig();
 
   const load = useCallback(() => {
     api.get("/products", { q: dq, categoria, bajoStock, inactivos }).then(setProducts).catch((e) => toast.error(e.message));
@@ -35,7 +38,7 @@ export default function Products() {
     saveText(
       toCsv(products, [
         { label: "codigo", value: "codigo" }, { label: "nombre", value: "nombre" }, { label: "descripcion", value: "descripcion" },
-        { label: "categoria", value: "categoria" }, { label: "talle", value: "talle" }, { label: "precio", value: "precio" },
+        { label: "categoria", value: "categoria" }, { label: "variante", value: "talle" }, { label: "precio", value: "precio" },
         { label: "precioCompra", value: "precio_compra" }, { label: "stock", value: "stock" }, { label: "stockMinimo", value: "stock_minimo" },
         { label: "iva", value: "alicuota_iva" },
       ]),
@@ -55,13 +58,14 @@ export default function Products() {
         <div><h2 className="page-title">Productos</h2><p className="page-subtitle">{products ? plural(products.length, "producto", "productos") : " "}</p></div>
         <div className="btn-row">
           {products?.length > 0 && <button className="btn btn-secondary" onClick={exportCsv}>⬇️ Exportar</button>}
+          {manage && <button className="btn btn-secondary" onClick={() => setCatsOpen(true)}>🏷️ Categorías</button>}
           {manage && <button className="btn btn-secondary" onClick={() => setImportOpen(true)}>⬆️ Importar planilla</button>}
           {manage && <button className="btn btn-primary" onClick={() => setEdit(EMPTY)}>+ Nuevo producto</button>}
         </div>
       </div>
 
       <div className="filters-bar">
-        <input className="form-input" autoFocus placeholder="🔍 Nombre, código o talle..." value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="form-input" autoFocus placeholder={`🔍 Nombre, código${usarVariante ? ` o ${varianteLabel.toLowerCase()}` : ""}...`} value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="form-select auto" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
           <option value="">Todas las categorías</option>
           {categorias.map((c) => <option key={c}>{c}</option>)}
@@ -110,6 +114,7 @@ export default function Products() {
 
       {edit && <ProductModal product={edit} categorias={categorias} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
       {stockOf && <StockModal product={stockOf} onClose={() => setStockOf(null)} onSaved={() => { setStockOf(null); load(); }} />}
+      {catsOpen && <CategoriesModal onClose={() => { setCatsOpen(false); load(); }} />}
       {importOpen && <ImportModal onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); load(); }} />}
       {toDelete && (
         <Confirm
@@ -129,6 +134,8 @@ export default function Products() {
 
 function ProductModal({ product, categorias, onClose, onSaved }) {
   const { isBilling } = useAuth();
+  const { varianteLabel, usarVariante, ejemplos } = useProductConfig();
+  const [newCat, setNewCat] = useState(false);
   const isNew = !product.id;
   const [f, setF] = useState(
     isNew ? product : {
@@ -159,15 +166,27 @@ function ProductModal({ product, categorias, onClose, onSaved }) {
       <form onSubmit={submit}>
         <div className="form-row">
           <Field label="Código" required hint="Podés escanearlo con el lector"><input className="form-input mono" autoFocus value={f.codigo} onChange={(e) => setF({ ...f, codigo: e.target.value.toUpperCase() })} maxLength={40} /></Field>
-          <Field label="Nombre" required><input className="form-input" value={f.nombre} onChange={set("nombre")} maxLength={120} /></Field>
+          <Field label="Nombre" required><input className="form-input" placeholder={`Ej: ${ejemplos.nombre}`} value={f.nombre} onChange={set("nombre")} maxLength={120} /></Field>
         </div>
         <Field label="Descripción"><input className="form-input" value={f.descripcion} onChange={set("descripcion")} maxLength={300} /></Field>
         <div className="form-row">
-          <Field label="Categoría">
-            <input className="form-input" list="categorias" placeholder="General" value={f.categoria} onChange={set("categoria")} maxLength={60} />
-            <datalist id="categorias">{categorias.map((c) => <option key={c} value={c} />)}</datalist>
-          </Field>
-          <Field label="Talle / medida / variante"><input className="form-input" value={f.talle} onChange={set("talle")} maxLength={30} /></Field>
+          <div className="form-group">
+            <span className="form-label">Categoría</span>
+            {newCat ? (
+              <div className="inline-fields wide">
+                <input className="form-input" autoFocus placeholder="Nombre de la nueva categoría" value={f.categoria} onChange={set("categoria")} maxLength={60} />
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setNewCat(false); setF({ ...f, categoria: "" }); }}>✕</button>
+              </div>
+            ) : (
+              <select className="form-select" value={f.categoria || "General"} onChange={(e) => (e.target.value === "__nueva" ? (setNewCat(true), setF({ ...f, categoria: "" })) : setF({ ...f, categoria: e.target.value }))}>
+                {(categorias.includes(f.categoria) || !f.categoria ? categorias : [f.categoria, ...categorias]).map((c) => <option key={c} value={c}>{c}</option>)}
+                <option value="__nueva">+ Nueva categoría…</option>
+              </select>
+            )}
+          </div>
+          {(usarVariante || f.talle) && (
+            <Field label={`${varianteLabel} (opcional)`}><input className="form-input" placeholder={`Ej: ${ejemplos.variante}`} value={f.talle} onChange={set("talle")} maxLength={30} /></Field>
+          )}
         </div>
         <div className="form-row">
           <Field label="Precio de venta (final)" required><input className="form-input" type="number" min="0" step="0.01" value={f.precio} onChange={set("precio")} /></Field>
@@ -328,6 +347,68 @@ function ImportModal({ onClose, onDone }) {
           )}
           <p className="fs-12 text-muted">Los productos nuevos se crean con el stock de la planilla. Cada cambio queda registrado en Movimientos.</p>
         </>
+      )}
+    </Modal>
+  );
+}
+
+function CategoriesModal({ onClose }) {
+  const [list, setList] = useState(null);
+  const [nueva, setNueva] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [toDelete, setToDelete] = useState(null);
+  const load = useCallback(() => api.get("/categories").then(setList).catch((e) => toast.error(e.message)), []);
+  useEffect(() => { load(); }, [load]);
+
+  const add = async (e) => {
+    e.preventDefault();
+    try { setList((await api.post("/categories", { nombre: nueva })) ); setNueva(""); } catch (err) { toast.error(err.message); }
+  };
+  const rename = async () => {
+    try {
+      const r = await api.put(`/categories/${editing.id}`, { nombre: editing.nombre });
+      if (r.unificada) toast.success("Las categorías se unificaron");
+      setList(r.categorias);
+      setEditing(null);
+    } catch (err) { toast.error(err.message); }
+  };
+
+  return (
+    <Modal title="Categorías" onClose={onClose} width={520}>
+      <form className="inline-fields wide mb-12" onSubmit={add}>
+        <input className="form-input" autoFocus placeholder="Nueva categoría (ej: Juguetería, Almacén, Regalería)" value={nueva} onChange={(e) => setNueva(e.target.value)} maxLength={60} />
+        <button className="btn btn-primary" disabled={!nueva.trim()}>Agregar</button>
+      </form>
+      {!list ? <Loader /> : list.map((c) => (
+        <div key={c.id} className="row-between line">
+          {editing?.id === c.id ? (
+            <div className="inline-fields wide grow">
+              <input className="form-input sm" autoFocus value={editing.nombre} onChange={(e) => setEditing({ ...editing, nombre: e.target.value })} onKeyDown={(e) => e.key === "Enter" && rename()} maxLength={60} />
+              <button className="btn btn-primary btn-sm" onClick={rename}>Guardar</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>✕</button>
+            </div>
+          ) : (
+            <>
+              <span><strong>{c.nombre}</strong> <span className="text-muted fs-13">· {plural(c.productos, "producto", "productos")}</span></span>
+              {c.nombre !== "General" && (
+                <span className="nowrap">
+                  <button className="btn btn-ghost btn-sm" title="Renombrar" onClick={() => setEditing({ id: c.id, nombre: c.nombre })}>✏️</button>
+                  <button className="btn btn-ghost btn-sm" title="Eliminar" onClick={() => setToDelete(c)}>🗑️</button>
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      ))}
+      <p className="fs-12 text-muted mt-12">Si renombrás una categoría con el nombre de otra que ya existe, se unifican. Al eliminar una, sus productos pasan a "General".</p>
+      {toDelete && (
+        <Confirm
+          title="Eliminar categoría"
+          confirmLabel="Eliminar"
+          message={<p>¿Eliminar <strong>{toDelete.nombre}</strong>? {toDelete.productos > 0 ? `Sus ${toDelete.productos} producto(s) pasan a "General".` : ""}</p>}
+          onConfirm={async () => { try { setList((await api.del(`/categories/${toDelete.id}`)).categorias); } catch (e) { toast.error(e.message); throw e; } }}
+          onClose={() => setToDelete(null)}
+        />
       )}
     </Modal>
   );

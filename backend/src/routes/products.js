@@ -7,6 +7,7 @@ const { round2 } = require("../money");
 const { changeStock } = require("../services/stock");
 const { audit } = require("../audit");
 const { ALICUOTAS_IVA } = require("../services/afip/constants");
+const { ensureCategory } = require("./categories");
 
 const router = express.Router();
 const canManage = requireRole("admin", "supervisor");
@@ -18,7 +19,7 @@ function parseProduct(body) {
     nombre: str(body.nombre, { name: "Nombre", max: 120, required: true }),
     descripcion: str(body.descripcion, { name: "Descripción", max: 300 }),
     categoria: str(body.categoria, { name: "Categoría", max: 60, fallback: "General" }),
-    talle: str(body.talle, { name: "Talle", max: 30 }),
+    talle: str(body.talle ?? body.variante, { name: "Variante", max: 30 }),
     precio: round2(num(body.precio, { name: "Precio de venta", min: 0, max: 1e10, required: true })),
     precio_compra: round2(num(body.precioCompra, { name: "Precio de costo", min: 0, max: 1e10 })),
     alicuota_iva: oneOf(num(body.alicuotaIva, { name: "IVA", fallback: 21 }), ALICUOTAS, { name: "Alícuota de IVA" }),
@@ -45,7 +46,7 @@ router.get("/", (req, res) => {
 });
 
 router.get("/categorias", (req, res) => {
-  res.json(getDb().prepare("SELECT DISTINCT categoria FROM products WHERE activo = 1 ORDER BY categoria").all().map((r) => r.categoria));
+  res.json(getDb().prepare("SELECT nombre FROM categories ORDER BY nombre = 'General' DESC, nombre COLLATE NOCASE").all().map((r) => r.nombre));
 });
 
 // Búsqueda exacta por código (lector de código de barras).
@@ -60,6 +61,7 @@ router.post("/", canManage, (req, res) => {
   const stockInicial = num(req.body.stock, { name: "Stock inicial", int: true, min: 0, max: 1e7 });
 
   const product = tx((db) => {
+    data.categoria = ensureCategory(data.categoria);
     const existing = db.prepare("SELECT * FROM products WHERE codigo = ?").get(data.codigo);
     if (existing?.activo) throw conflict(`Ya existe un producto con el código ${data.codigo}`);
 
@@ -89,6 +91,7 @@ router.put("/:id", canManage, (req, res) => {
   const productId = id(req.params.id);
   const data = parseProduct(req.body);
   const product = tx((db) => {
+    data.categoria = ensureCategory(data.categoria);
     const before = db.prepare("SELECT * FROM products WHERE id = ?").get(productId);
     if (!before) throw notFound("Producto no encontrado");
     const dup = db.prepare("SELECT id FROM products WHERE codigo = ? AND id <> ?").get(data.codigo, productId);
@@ -180,6 +183,7 @@ router.post("/importar", canManage, (req, res) => {
   const result = tx((db) => {
     let creados = 0, actualizados = 0;
     for (const { data, stock } of parsed) {
+      data.categoria = ensureCategory(data.categoria);
       const existing = db.prepare("SELECT * FROM products WHERE codigo = ?").get(data.codigo);
       if (!existing) {
         const r = db

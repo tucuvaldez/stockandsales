@@ -54,6 +54,7 @@ function createApp({ logger = console } = {}) {
   const api = express.Router();
   api.use(requireAuth);
   api.use("/products", require("./routes/products"));
+  api.use("/categories", require("./routes/categories"));
   api.use("/sales", require("./routes/sales"));
   api.use("/movements", requireRole("admin", "supervisor"), require("./routes/movements"));
   api.use("/stats", requireRole("admin", "supervisor"), require("./routes/stats"));

@@ -37,7 +37,8 @@ function NegocioTab() {
   const loadRecovery = useCallback(() => api.get("/settings/recuperacion").then(setRecovery).catch(() => {}), []);
   useEffect(() => { loadRecovery(); }, [loadRecovery]);
   useEffect(() => {
-    if (negocio) setF({ nombre: negocio.negocio_nombre, direccion: negocio.negocio_direccion, telefono: negocio.negocio_telefono, pieTicket: negocio.negocio_pie_ticket, cajaObligatoria: negocio.cajaObligatoria });
+    if (negocio) setF({ nombre: negocio.negocio_nombre, direccion: negocio.negocio_direccion, telefono: negocio.negocio_telefono, pieTicket: negocio.negocio_pie_ticket, cajaObligatoria: negocio.cajaObligatoria,
+      rubro: negocio.producto?.rubro || "otro", varianteLabel: negocio.producto?.varianteLabel || "", usarVariante: negocio.producto?.usarVariante ?? true });
   }, [negocio]);
   if (!f) return <Loader />;
 
@@ -56,6 +57,34 @@ function NegocioTab() {
       <Field label="Dirección"><input className="form-input" value={f.direccion} onChange={(e) => setF({ ...f, direccion: e.target.value })} maxLength={200} /></Field>
       <Field label="Teléfono"><input className="form-input" value={f.telefono} onChange={(e) => setF({ ...f, telefono: e.target.value })} maxLength={50} /></Field>
       <Field label="Texto al pie del ticket" hint="Ej: ¡Gracias por su compra! Cambios dentro de los 30 días."><input className="form-input" value={f.pieTicket} onChange={(e) => setF({ ...f, pieTicket: e.target.value })} maxLength={300} /></Field>
+      <h3 className="card-title mt-20">Tipo de negocio</h3>
+      <Field label="Rubro" hint="Adapta los ejemplos y el nombre del campo variable de los productos.">
+        <select className="form-select" value={f.rubro} onChange={(e) => {
+          const r = negocio.producto.rubros[e.target.value];
+          setF({ ...f, rubro: e.target.value, varianteLabel: r.variante });
+        }}>
+          {Object.entries(negocio.producto?.rubros || {}).map(([k, r]) => <option key={k} value={k}>{r.nombre}</option>)}
+        </select>
+      </Field>
+      <label className="check mb-8">
+        <input type="checkbox" checked={f.usarVariante} onChange={(e) => setF({ ...f, usarVariante: e.target.checked })} />
+        Los productos tienen talle, medida, presentación, color u otra variante
+      </label>
+      {f.usarVariante && (
+        <Field label="¿Cómo se llama ese dato en tu negocio?" hint="Ej: Talle, Presentación, Medida, Color, Sabor, Modelo">
+          <input className="form-input" value={f.varianteLabel} onChange={(e) => setF({ ...f, varianteLabel: e.target.value })} maxLength={30} />
+        </Field>
+      )}
+      {negocio.producto?.rubros?.[f.rubro]?.categorias?.length > 0 && (
+        <p className="fs-13 mb-12">
+          <button type="button" className="link-btn" onClick={async () => {
+            try { await api.post("/categories/sugeridas", { rubro: f.rubro }); toast.success("Categorías sugeridas agregadas"); } catch (e) { toast.error(e.message); }
+          }}>Agregar categorías sugeridas</button>{" "}
+          <span className="text-muted">({negocio.producto.rubros[f.rubro].categorias.join(", ")})</span>
+        </p>
+      )}
+
+      <h3 className="card-title mt-20">Caja</h3>
       <label className="check mb-12">
         <input type="checkbox" checked={!!f.cajaObligatoria} onChange={(e) => setF({ ...f, cajaObligatoria: e.target.checked })} />
         Exigir caja abierta para vender (recomendado: así cada venta queda en un arqueo)

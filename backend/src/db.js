@@ -234,6 +234,16 @@ const MIGRATIONS = [
   CREATE INDEX idx_sale_payments_sale ON sale_payments(sale_id);
   INSERT INTO sale_payments (sale_id, metodo_pago, monto) SELECT id, metodo_pago, total FROM sales WHERE total > 0;
   `,
+  // 3: categorías administrables (los productos guardan el nombre; renombrar actualiza los productos).
+  `
+  CREATE TABLE categories (
+    id INTEGER PRIMARY KEY,
+    nombre TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    created_at TEXT NOT NULL DEFAULT ${NOW}
+  );
+  INSERT OR IGNORE INTO categories (nombre) VALUES ('General');
+  INSERT OR IGNORE INTO categories (nombre) SELECT DISTINCT categoria FROM products WHERE trim(categoria) <> '';
+  `,
 ];
 
 let db = null;

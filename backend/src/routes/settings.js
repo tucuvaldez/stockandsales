@@ -16,6 +16,19 @@ const adminOnly = requireRole("admin");
 
 const NEGOCIO_KEYS = ["negocio_nombre", "negocio_direccion", "negocio_telefono", "negocio_pie_ticket"];
 const cajaObligatoria = () => settings.get("caja_obligatoria", "1") === "1";
+const { RUBROS, rubroOrDefault } = require("../rubros");
+
+// Cómo se muestra el campo "variante" según el tipo de negocio (o lo que eligió el dueño).
+function productoConfig() {
+  const rubro = rubroOrDefault(settings.get("rubro", "otro"));
+  return {
+    rubro,
+    rubros: Object.fromEntries(Object.entries(RUBROS).map(([k, r]) => [k, { nombre: r.nombre, variante: r.variante, categorias: r.categorias }])),
+    varianteLabel: settings.get("variante_label") || RUBROS[rubro].variante,
+    usarVariante: settings.get("usar_variante", "1") === "1",
+    ejemplos: RUBROS[rubro].ejemplos,
+  };
+}
 
 function certInfo() {
   const cert = settings.get("afip_cert");
@@ -29,7 +42,7 @@ function certInfo() {
 
 // Datos que necesita cualquier usuario logueado (encabezado de tickets y facturas).
 router.get("/negocio", (req, res) => {
-  const out = { ...settings.getMany(NEGOCIO_KEYS), modo: settings.getMode(), cajaObligatoria: cajaObligatoria(), impresion: settings.printConfig() };
+  const out = { ...settings.getMany(NEGOCIO_KEYS), modo: settings.getMode(), cajaObligatoria: cajaObligatoria(), impresion: settings.printConfig(), producto: productoConfig() };
   if (settings.isBilling()) {
     const cfg = afip.fiscalConfig();
     out.fiscal = {
@@ -50,6 +63,9 @@ router.put("/negocio", adminOnly, (req, res) => {
   };
   for (const [k, v] of Object.entries(values)) settings.set(k, v);
   if (typeof req.body.cajaObligatoria === "boolean") settings.set("caja_obligatoria", req.body.cajaObligatoria ? "1" : "0");
+  if (req.body.rubro !== undefined) settings.set("rubro", oneOf(req.body.rubro, Object.keys(RUBROS), { name: "Tipo de negocio" }));
+  if (req.body.varianteLabel !== undefined) settings.set("variante_label", str(req.body.varianteLabel, { name: "Nombre del campo", max: 30 }));
+  if (typeof req.body.usarVariante === "boolean") settings.set("usar_variante", req.body.usarVariante ? "1" : "0");
   audit(req, "config.negocio", { detalle: { ...values, cajaObligatoria: cajaObligatoria() } });
   res.json({ ok: true });
 });
