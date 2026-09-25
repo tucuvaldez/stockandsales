@@ -257,6 +257,11 @@ th.text-right, td.text-right { text-align: right; }
   .print-only-area { position: absolute; left: 10mm; top: 10mm; width: 120mm; }
 }
 
+.space-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.space-grid div { background: var(--surface2); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; font-size: 12px; color: var(--text-muted); }
+.space-grid strong { font-size: 16px; color: var(--text); }
+@media (max-width: 800px) { .space-grid { grid-template-columns: 1fr 1fr; } }
+
 /* Utilidades */
 .mono { font-family: var(--mono); font-size: 13px; }
 .text-muted { color: var(--text-muted); } .text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-warning { color: var(--warning); } .text-body { color: var(--text); }

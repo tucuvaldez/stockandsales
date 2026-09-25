@@ -139,6 +139,7 @@ router.put("/impresion", adminOnly, (req, res) => {
     factura_imprimir: oneOf(req.body.factura_imprimir, ["siempre", "preguntar"], { name: "Factura" }),
     factura_formato: oneOf(req.body.factura_formato, ["a4", "ticket"], { name: "Formato de factura" }),
     impresion_directa: req.body.impresion_directa ? "1" : "0",
+    factura_pdf: req.body.factura_pdf === "0" || req.body.factura_pdf === false ? "0" : "1",
   };
   const carpeta = str(req.body.carpeta, { name: "Carpeta", max: 400 });
   if (carpeta && carpeta !== documents.docsDir()) {
@@ -163,6 +164,8 @@ router.post("/recuperacion", adminOnly, (req, res) => {
 });
 
 router.get("/backups", adminOnly, (req, res) => res.json(backup.listBackups()));
+
+router.get("/espacio", adminOnly, (req, res) => res.json(backup.diskUsage(documents.docsDir())));
 
 router.post("/backups", adminOnly, (req, res) => {
   const b = backup.createBackup("manual");

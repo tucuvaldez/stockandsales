@@ -81,7 +81,7 @@ Todas piden la **clave de técnico**:
 | `RESTAURAR_COPIA.bat` | Volver a una copia de seguridad (antes guarda una de los datos actuales) |
 | `CAMBIAR_CLAVE_TECNICO.bat` | Cambiar tu clave de técnico. Acepta el **código de recuperación del técnico** si te la olvidaste, y te da uno nuevo |
 
-El modo **no** está en ningún archivo editable: queda guardado en la base y solo se cambia con tu clave.
+El modo **no** está en ningún archivo editable: queda guardado en la base y solo se cambia con tu clave. Podés dejar la carpeta `tecnico` en la PC del cliente: sin tu clave no hace nada. Si preferís, borrala después de instalar y llevala en un pendrive.
 
 ## 5. Actualizar a una versión nueva
 
@@ -98,6 +98,6 @@ En `backend\.env` cambiar `HOST=0.0.0.0`, reiniciar y abrir `http://IP-DE-ESTA-P
 | Ruta | Contenido |
 |------|-----------|
 | `data\stocklocal.db` | Toda la información (incluido el certificado de ARCA) |
-| `data\backups\` | Copias automáticas diarias (últimas 30) |
-| `data\logs\servidor.log` | Registro de errores del servidor |
+| `data\backups\` | Copias automáticas comprimidas (.db.gz): 7 diarias, 4 semanales y 12 mensuales. Para restaurar una copia traída de un pendrive, copiala acá y usá `RESTAURAR_COPIA.bat` |
+| `data\logs\servidor.log` | Registro de errores del servidor (se rota solo al pasar los 5 MB) |
 | `backend\.env` | Puerto y red |

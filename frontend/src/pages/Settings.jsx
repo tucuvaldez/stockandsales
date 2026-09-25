@@ -292,9 +292,12 @@ function PrintTab() {
           <>
             <Choice label="Factura electrónica" value={f.factura_imprimir} onChange={set("factura_imprimir")}
               options={[["siempre", "Imprimir siempre"], ["preguntar", "Botón para imprimir"]]}
-              hint="Siempre se guarda además una copia en PDF." />
+              />
             <Choice label="Formato de la factura impresa" value={f.factura_formato} onChange={set("factura_formato")}
               options={[["a4", "Hoja A4"], ["ticket", "Ticket 80 mm (impresora térmica)"]]} />
+            <Choice label="Copia PDF de cada factura" value={f.factura_pdf} onChange={set("factura_pdf")}
+              options={[["1", "Guardar siempre"], ["0", "No guardar"]]}
+              hint="Cada factura ocupa unos 10 KB. Aunque no se guarde, se puede generar en cualquier momento con el botón PDF." />
           </>
         )}
         <label className="check mt-8">
@@ -335,10 +338,16 @@ function PrintTab() {
   );
 }
 
+const mb = (n) => (n >= 1024 * 1024 * 1024 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
 function BackupsTab() {
   const [list, setList] = useState(null);
+  const [space, setSpace] = useState(null);
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => api.get("/settings/backups").then(setList).catch((e) => toast.error(e.message)), []);
+  const load = useCallback(() => {
+    api.get("/settings/backups").then(setList).catch((e) => toast.error(e.message));
+    api.get("/settings/espacio").then(setSpace).catch(() => {});
+  }, []);
   useEffect(() => { load(); }, [load]);
 
   const create = async () => {
@@ -350,9 +359,19 @@ function BackupsTab() {
   return (
     <div className="card narrow-lg">
       <p className="fs-13 text-muted mb-12">
-        El sistema hace una copia automática por día (se guardan las últimas 30) en la carpeta <span className="mono">data\backups</span>.
+        El sistema hace una copia automática y comprimida por día en <span className="mono">data\backups</span>. Se conservan las de los últimos 7 días,
+        una por semana del último mes y una por mes del último año: se puede volver hasta un año atrás ocupando poco espacio.
         Recomendación: descargá una copia cada semana a un pendrive o a la nube. Para restaurar una copia usá <strong>RESTAURAR_COPIA.bat</strong>.
       </p>
+      {space && (
+        <div className="space-grid mb-12">
+          <div><span>Base de datos</span><strong>{mb(space.base)}</strong></div>
+          <div><span>Copias de seguridad</span><strong>{mb(space.copias)}</strong></div>
+          <div><span>Documentos PDF</span><strong>{mb(space.documentos)}</strong></div>
+          <div><span>Total</span><strong>{mb(space.base + space.copias + space.documentos + space.registros)}</strong></div>
+        </div>
+      )}
+      <p className="fs-12 text-muted mb-12">Como referencia: un año de un comercio con 100 ventas por día ocupa unos 40 MB de base de datos.</p>
       <button className="btn btn-primary" onClick={create} disabled={busy}>{busy ? "Creando..." : "Crear copia ahora"}</button>
       {!list ? <Loader /> : (
         <table className="table-plain mt-12">

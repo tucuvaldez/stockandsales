@@ -60,8 +60,7 @@ async function restaurar() {
   const wasRunning = await launcher.stop();
   backup.createBackup("antes-de-restaurar");
   closeDb();
-  for (const ext of ["-wal", "-shm"]) fs.rmSync(paths.DB_FILE + ext, { force: true });
-  fs.copyFileSync(path.join(paths.BACKUP_DIR, chosen.name), paths.DB_FILE);
+  backup.restoreFile(path.join(paths.BACKUP_DIR, chosen.name), paths.DB_FILE);
   initDb(paths.DB_FILE);
   console.log("\n  Copia restaurada.");
   if (wasRunning) {

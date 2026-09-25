@@ -36,7 +36,8 @@ Sistema de stock y ventas para tu negocio.
 ## Tus datos
 
 - Se guardan en esta PC, en la carpeta `data`.
-- Se hace una **copia de seguridad automática por día** (quedan las últimas 30).
+- Se hace una **copia de seguridad automática y comprimida por día**. Se guardan las de la última semana, una por semana del último mes y una por mes del último año.
+- Ocupa poco: un año de un comercio con 100 ventas por día son unos 40 MB. En **Configuración → Copias de seguridad** se ve cuánto ocupa todo.
 - Recomendado: una vez por semana, en **Configuración → Copias de seguridad**, descargá una copia a un pendrive o a la nube.
 
 ## Problemas comunes

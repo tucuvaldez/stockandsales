@@ -291,7 +291,7 @@ function emit(invoiceId, ctx) {
     }
 
     inv = getInvoice(invoiceId);
-    if (inv.estado === "autorizada") {
+    if (inv.estado === "autorizada" && require("../settings").get("factura_pdf", "1") === "1") {
       // Copia en PDF para el archivo del comercio y el contador. No bloquea la venta si falla.
       try {
         await require("./documents").saveInvoicePdf(inv, afip.fiscalConfig());

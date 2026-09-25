@@ -86,7 +86,10 @@ async function start({ openBrowser: open = true } = {}) {
     return "running";
   }
   paths.ensureDataDirs();
-  const log = fs.openSync(path.join(paths.LOG_DIR, "servidor.log"), "a");
+  const logFile = path.join(paths.LOG_DIR, "servidor.log");
+  // Rotación simple: el registro nunca pasa de ~5 MB (se conserva el anterior como .old).
+  if (fs.existsSync(logFile) && fs.statSync(logFile).size > 5 * 1024 * 1024) fs.renameSync(logFile, `${logFile}.old`);
+  const log = fs.openSync(logFile, "a");
   const child = spawn(process.execPath, ["--disable-warning=ExperimentalWarning", SERVER], {
     cwd: path.dirname(SERVER),
     detached: true,

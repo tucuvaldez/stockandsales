@@ -48,6 +48,7 @@ const PRINT_DEFAULTS = {
   ticket_venta: "preguntar", // no | preguntar | siempre
   factura_imprimir: "siempre", // siempre | preguntar
   factura_formato: "a4", // a4 | ticket
+  factura_pdf: "1", // 1 = guardar copia PDF de cada factura autorizada (se puede regenerar siempre)
   impresion_directa: "0", // 1 = imprime sin mostrar el diálogo (Windows, navegador en modo aplicación)
 };
 function printConfig() {

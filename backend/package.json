@@ -1,6 +1,6 @@
 {
   "name": "stocklocal-backend",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "private": true,
   "main": "server.js",
   "engines": {
