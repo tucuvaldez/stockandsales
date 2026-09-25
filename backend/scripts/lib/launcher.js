@@ -32,7 +32,49 @@ function readPid() {
   }
 }
 
-function openBrowser(url = URL) {
+function getConfig() {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${PORT}/api/config`, { timeout: 2000 }, (res) => {
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
+    });
+    req.on("error", () => resolve({}));
+    req.on("timeout", () => { req.destroy(); resolve({}); });
+  });
+}
+
+// Edge viene con Windows 10/11; si no está, se prueba con Chrome.
+function findAppBrowser() {
+  const env = process.env;
+  const candidates = process.platform === "win32"
+    ? [
+        [env["ProgramFiles(x86)"], "Microsoft\\Edge\\Application\\msedge.exe"],
+        [env.ProgramFiles, "Microsoft\\Edge\\Application\\msedge.exe"],
+        [env.ProgramFiles, "Google\\Chrome\\Application\\chrome.exe"],
+        [env["ProgramFiles(x86)"], "Google\\Chrome\\Application\\chrome.exe"],
+        [env.LOCALAPPDATA, "Google\\Chrome\\Application\\chrome.exe"],
+      ].filter(([base]) => base).map(([base, rel]) => path.join(base, rel))
+    : process.platform === "darwin"
+      ? ["/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+      : ["/usr/bin/microsoft-edge", "/usr/bin/google-chrome", "/usr/bin/chromium"];
+  return candidates.find((p) => fs.existsSync(p)) || null;
+}
+
+/**
+ * Con impresión directa, el sistema se abre en una ventana propia del navegador que imprime
+ * en la impresora predeterminada sin mostrar el diálogo (--kiosk-printing). Usa un perfil
+ * separado para no mezclarse con el navegador personal.
+ */
+async function openBrowser(url = URL) {
+  const cfg = await getConfig();
+  const exe = cfg.impresionDirecta ? findAppBrowser() : null;
+  if (exe) {
+    spawn(exe, [`--app=${url}`, "--kiosk-printing", `--user-data-dir=${path.join(paths.DATA_DIR, "navegador")}`, "--no-first-run", "--no-default-browser-check"], {
+      detached: true, stdio: "ignore", windowsHide: false,
+    }).unref();
+    return;
+  }
   const cmd = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
   spawn(cmd[0], cmd[1], { detached: true, stdio: "ignore", windowsHide: true }).unref();
 }
@@ -40,7 +82,7 @@ function openBrowser(url = URL) {
 // Arranca el servidor en segundo plano (sin ventana) y espera a que responda.
 async function start({ openBrowser: open = true } = {}) {
   if (await health()) {
-    if (open) openBrowser();
+    if (open) await openBrowser();
     return "running";
   }
   paths.ensureDataDirs();
@@ -56,7 +98,7 @@ async function start({ openBrowser: open = true } = {}) {
   for (let i = 0; i < 40; i++) {
     await sleep(250);
     if (await health()) {
-      if (open) openBrowser();
+      if (open) await openBrowser();
       return "started";
     }
     if (child.exitCode !== null) break;

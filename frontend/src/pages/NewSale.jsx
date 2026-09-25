@@ -6,7 +6,7 @@ import { Badge, Modal, useDebounced } from "../components/ui";
 import ReceptorForm, { CONSUMIDOR_FINAL, letraReceptor, receptorError, receptorPayload } from "../components/ReceptorForm";
 import { CBTE_NOMBRES, PAYMENT_METHODS, cbteNumero, money, paymentLabel, round2 } from "../lib/format";
 
-const openPrint = (path) => window.open(path, "_blank", "noopener");
+import { printInFrame as openPrint } from "../lib/print";
 
 export default function NewSale() {
   const { isBilling, negocio } = useAuth();
@@ -344,10 +344,20 @@ function QuickOpenCash({ onOpened }) {
 }
 
 function SaleDone({ result, onNew }) {
+  const { negocio } = useAuth();
   const { sale, invoice, invoiceError } = result;
   const ok = invoice?.estado === "autorizada";
   const btnRef = useRef(null);
-  useEffect(() => btnRef.current?.focus(), []);
+  const cfg = negocio?.impresion || {};
+  const autoFactura = ok && cfg.factura_imprimir === "siempre";
+  // Con factura impresa no hace falta además el ticket no fiscal.
+  const autoTicket = !autoFactura && cfg.ticket_venta === "siempre";
+  useEffect(() => {
+    btnRef.current?.focus();
+    if (autoFactura) openPrint(`/imprimir/comprobante/${invoice.id}`);
+    else if (autoTicket) openPrint(`/imprimir/venta/${sale.id}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Modal
@@ -356,8 +366,8 @@ function SaleDone({ result, onNew }) {
       width={460}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={() => openPrint(`/imprimir/venta/${sale.id}`)}>🖨️ Ticket</button>
-          {ok && <button className="btn btn-secondary" onClick={() => openPrint(`/imprimir/comprobante/${invoice.id}`)}>🖨️ Factura</button>}
+          {cfg.ticket_venta !== "no" && !autoTicket && <button className="btn btn-secondary" onClick={() => openPrint(`/imprimir/venta/${sale.id}`)}>🖨️ Ticket</button>}
+          {ok && !autoFactura && <button className="btn btn-secondary" onClick={() => openPrint(`/imprimir/comprobante/${invoice.id}`)}>🖨️ Factura</button>}
           <button ref={btnRef} className="btn btn-primary" onClick={onNew}>Nueva venta</button>
         </>
       }
@@ -369,8 +379,10 @@ function SaleDone({ result, onNew }) {
       {invoice && ok && (
         <div className="alert-banner alert-success mt-12">
           ✅ {CBTE_NOMBRES[invoice.tipo_cbte]} {cbteNumero(invoice.pto_vta, invoice.numero)} autorizada. CAE {invoice.cae}
+          {autoFactura && " · imprimiendo..."}
         </div>
       )}
+      {!invoice && autoTicket && <p className="text-center fs-13 text-muted">🖨️ Imprimiendo ticket...</p>}
       {invoice && !ok && (
         <div className="alert-banner alert-warning mt-12">
           ⚠️ La venta quedó registrada, pero la factura está <strong>{invoice.estado}</strong>: {invoice.mensajes || "sin detalle"}.<br />

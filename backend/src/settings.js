@@ -42,4 +42,18 @@ function featureFlags(mode = getMode()) {
   return { inventory: true, sales: true, movements: true, reports: true, billing, clients: billing };
 }
 
-module.exports = { MODES, get, set, getMany, getMode, isBilling, getJwtSecret, featureFlags };
+// Qué se imprime y qué solo se guarda en PDF. Pensado para que un comercio atendido por una sola persona no gaste papel.
+const PRINT_DEFAULTS = {
+  cierre_accion: "pdf", // pdf | pdf_imprimir
+  ticket_venta: "preguntar", // no | preguntar | siempre
+  factura_imprimir: "siempre", // siempre | preguntar
+  factura_formato: "a4", // a4 | ticket
+  impresion_directa: "0", // 1 = imprime sin mostrar el diálogo (Windows, navegador en modo aplicación)
+};
+function printConfig() {
+  const out = {};
+  for (const [k, v] of Object.entries(PRINT_DEFAULTS)) out[k] = get(k, v);
+  return out;
+}
+
+module.exports = { PRINT_DEFAULTS, printConfig, MODES, get, set, getMany, getMode, isBilling, getJwtSecret, featureFlags };

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { Loader } from "../components/ui";
+import { autoPrint, inFrame } from "../lib/print";
 import { PAYMENT_METHODS, dateTime, money } from "../lib/format";
 
 const TIPO_LABEL = { venta: "Ventas", devolucion: "Devoluciones", anulacion: "Anulaciones", ingreso: "Ingresos", egreso: "Egresos" };
@@ -14,7 +15,7 @@ export default function PrintCash() {
   const [error, setError] = useState("");
 
   useEffect(() => { api.get(`/cash/${id}`).then(setS).catch((e) => setError(e.message)); }, [id]);
-  useEffect(() => { if (s && negocio) setTimeout(() => window.print(), 300); }, [s, negocio]);
+  useEffect(() => { if (s && negocio) autoPrint(); }, [s, negocio]);
 
   if (error) return <p className="print-error">{error}</p>;
   if (!s || !negocio) return <Loader />;
@@ -22,10 +23,10 @@ export default function PrintCash() {
 
   return (
     <div className="print-page">
-      <div className="print-toolbar no-print">
+      {!inFrame() && <div className="print-toolbar no-print">
         <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Imprimir</button>
         <button className="btn btn-secondary" onClick={() => window.close()}>Cerrar</button>
-      </div>
+      </div>}
       <div className="ticket">
         <div className="t-center t-big">{negocio.negocio_nombre}</div>
         <div className="t-center">CIERRE DE CAJA N° {s.id}</div>

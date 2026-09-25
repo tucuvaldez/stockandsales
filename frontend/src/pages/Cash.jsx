@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import { Badge, Empty, Field, Loader, Modal, Pagination } from "../components/ui";
 import { PAYMENT_METHODS, dateTime, money, paymentLabel } from "../lib/format";
+import { openFolder, openPdf, printInFrame } from "../lib/print";
 
 const TIPOS = {
   venta: { label: "Venta", badge: "success" },
@@ -12,7 +13,8 @@ const TIPOS = {
   ingreso: { label: "Ingreso", badge: "accent" },
   egreso: { label: "Egreso", badge: "danger" },
 };
-const openPrint = (id) => window.open(`/imprimir/caja/${id}`, "_blank", "noopener");
+const openPrint = (id) => printInFrame(`/imprimir/caja/${id}`);
+const viewPdf = (id) => openPdf(`/documents/caja/${id}.pdf`).catch((e) => toast.error(e.message));
 
 export default function Cash() {
   const { can } = useAuth();
@@ -224,19 +226,35 @@ function CloseModal({ session, showExpected, onClose, onDone }) {
 }
 
 function ClosedResult({ r, onClose }) {
+  const { negocio, can } = useAuth();
   const ok = Math.abs(r.diferencia) < 0.01;
+  const imprimir = negocio?.impresion?.cierre_accion === "pdf_imprimir";
+  useEffect(() => { if (imprimir) openPrint(r.id); }, [imprimir, r.id]);
+
   return (
     <Modal
       title="Caja cerrada"
       onClose={onClose}
-      width={440}
-      footer={<><button className="btn btn-secondary" onClick={() => openPrint(r.id)}>🖨️ Imprimir cierre</button><button className="btn btn-primary" onClick={onClose}>Listo</button></>}
+      width={480}
+      footer={
+        <>
+          <button className="btn btn-secondary" onClick={() => viewPdf(r.id)}>📄 Ver PDF</button>
+          {!imprimir && <button className="btn btn-secondary" onClick={() => openPrint(r.id)}>🖨️ Imprimir</button>}
+          <button className="btn btn-primary" onClick={onClose}>Listo</button>
+        </>
+      }
     >
       <div className="row-between line"><span>Efectivo esperado</span><strong>{money(r.efectivo_esperado)}</strong></div>
       <div className="row-between line"><span>Efectivo contado</span><strong>{money(r.efectivo_contado)}</strong></div>
       <div className={`alert-banner mt-12 ${ok ? "alert-success" : r.diferencia > 0 ? "alert-info" : "alert-danger"}`}>
         {ok ? "✅ La caja cierra justa." : r.diferencia > 0 ? `Sobrante de ${money(r.diferencia)}` : `Faltante de ${money(-r.diferencia)}`}
       </div>
+      {r.pdf?.ok ? (
+        <p className="fs-13 text-muted">
+          📄 Cierre guardado en PDF: <span className="mono fs-12 path">{r.pdf.archivo}</span>
+          {can("admin", "supervisor") && <> · <button className="link-btn" onClick={() => openFolder().catch((e) => toast.error(e.message))}>abrir carpeta</button></>}
+        </p>
+      ) : r.pdf && <div className="alert-banner alert-warning">No se pudo guardar el PDF: {r.pdf.error}. Podés generarlo con "Ver PDF".</div>}
     </Modal>
   );
 }
@@ -265,7 +283,7 @@ function History() {
                     <td className="text-right">
                       {c.estado === "cerrada" && (Math.abs(c.diferencia) < 0.01 ? <Badge kind="success">Justa</Badge> : <Badge kind={c.diferencia > 0 ? "warning" : "danger"}>{c.diferencia > 0 ? "+" : "−"}{money(Math.abs(c.diferencia))}</Badge>)}
                     </td>
-                    <td className="text-right">{c.estado === "cerrada" && <button className="btn btn-sm btn-secondary" onClick={() => openPrint(c.id)}>🖨️ Ver</button>}</td>
+                    <td className="text-right nowrap">{c.estado === "cerrada" && <><button className="btn btn-sm btn-secondary" onClick={() => viewPdf(c.id)}>📄 PDF</button> <button className="btn btn-sm btn-ghost" title="Imprimir" onClick={() => openPrint(c.id)}>🖨️</button></>}</td>
                   </tr>
                 ))}
               </tbody>

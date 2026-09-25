@@ -43,7 +43,10 @@ function createApp({ logger = console } = {}) {
   app.get("/api/health", (req, res) => res.json({ ok: true, version: VERSION }));
   app.get("/api/config", (req, res) => {
     const mode = settings.getMode();
-    res.json({ version: VERSION, mode, isBilling: mode === "facturacion", featureFlags: settings.featureFlags(mode), negocio: settings.get("negocio_nombre", "") });
+    res.json({
+      version: VERSION, mode, isBilling: mode === "facturacion", featureFlags: settings.featureFlags(mode),
+      negocio: settings.get("negocio_nombre", ""), impresionDirecta: settings.get("impresion_directa", "0") === "1",
+    });
   });
 
   app.use("/api/auth", require("./routes/auth"));
@@ -55,6 +58,7 @@ function createApp({ logger = console } = {}) {
   api.use("/movements", requireRole("admin", "supervisor"), require("./routes/movements"));
   api.use("/stats", requireRole("admin", "supervisor"), require("./routes/stats"));
   api.use("/cash", require("./routes/cash"));
+  api.use("/documents", require("./routes/documents"));
   api.use("/users", require("./routes/users"));
   api.use("/settings", require("./routes/settings"));
   api.use("/clients", billingOnly, require("./routes/clients"));

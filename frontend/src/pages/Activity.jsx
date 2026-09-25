@@ -14,6 +14,7 @@ const ACCIONES = {
   "config.negocio": "Datos del negocio", "config.fiscal": "Configuración fiscal", "config.certificado": "Certificado ARCA", "config.generar_csr": "Solicitud de certificado",
   "backup.crear": "Copia de seguridad", "backup.descargar": "Descarga de copia",
   "sistema.instalar": "Instalación", "sistema.cambiar_modo": "Cambio de modo", "sistema.restablecer_clave": "Contraseña restablecida por técnico",
+  "config.impresion": "Configuración de impresión y PDF",
   "caja.abrir": "Apertura de caja", "caja.cerrar": "Cierre de caja", "caja.ingreso": "Ingreso de dinero", "caja.egreso": "Pago / gasto / retiro",
   "cliente.crear": "Alta de cliente", "cliente.editar": "Edición de cliente", "cliente.eliminar": "Baja de cliente",
 };

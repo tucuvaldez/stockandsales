@@ -291,6 +291,14 @@ function emit(invoiceId, ctx) {
     }
 
     inv = getInvoice(invoiceId);
+    if (inv.estado === "autorizada") {
+      // Copia en PDF para el archivo del comercio y el contador. No bloquea la venta si falla.
+      try {
+        await require("./documents").saveInvoicePdf(inv, afip.fiscalConfig());
+      } catch (err) {
+        console.error(`No se pudo guardar el PDF del comprobante ${invoiceId}:`, err.message);
+      }
+    }
     audit(ctx, "comprobante.emitir", { entidad: "comprobante", entidadId: invoiceId, detalle: { estado: inv.estado, numero: inv.numero, mensajes: inv.mensajes } });
     return inv;
   });

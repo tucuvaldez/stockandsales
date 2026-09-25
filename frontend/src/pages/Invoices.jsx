@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { api, download } from "../api";
 import { useAuth } from "../auth";
+import { openPdf, printInFrame } from "../lib/print";
 import { Badge, Confirm, Empty, Loader, Pagination } from "../components/ui";
 import { CBTE_NOMBRES, INVOICE_STATES, cbteNumero, money, plural, ymd } from "../lib/format";
 
@@ -71,7 +72,12 @@ export default function Invoices() {
                       {inv.estado === "autorizada" ? <div className="fs-12 text-muted mono">CAE {inv.cae}</div> : inv.mensajes && <div className="fs-12 text-muted msg">{inv.mensajes}</div>}
                     </td>
                     <td className="text-right nowrap">
-                      {inv.estado === "autorizada" && <button className="btn btn-sm btn-secondary" onClick={() => window.open(`/imprimir/comprobante/${inv.id}`, "_blank", "noopener")}>🖨️ Ver</button>}
+                      {inv.estado === "autorizada" && (
+                        <>
+                          <button className="btn btn-sm btn-secondary" onClick={() => openPdf(`/documents/comprobante/${inv.id}.pdf`).catch((e) => toast.error(e.message))}>📄 PDF</button>
+                          <button className="btn btn-sm btn-ghost" title="Imprimir" onClick={() => printInFrame(`/imprimir/comprobante/${inv.id}`)}>🖨️</button>
+                        </>
+                      )}
                       {["pendiente", "error", "rechazada"].includes(inv.estado) && (
                         <button className="btn btn-sm btn-primary" disabled={busyId === inv.id} onClick={() => retry(inv)}>{busyId === inv.id ? "Enviando..." : "Reintentar"}</button>
                       )}

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
 import { Loader } from "../components/ui";
+import { autoPrint, inFrame } from "../lib/print";
 import { dateTime, money, paymentLabel } from "../lib/format";
 
 export default function PrintSale() {
@@ -11,9 +12,20 @@ export default function PrintSale() {
   const [sale, setSale] = useState(null);
   const [error, setError] = useState("");
 
-  useEffect(() => { api.get(`/sales/${id}`).then(setSale).catch((e) => setError(e.message)); }, [id]);
   useEffect(() => {
-    if (sale && negocio) setTimeout(() => window.print(), 300);
+    // Página de prueba desde Configuración: verifica que la impresora imprima bien el ancho del ticket.
+    if (id === "0") {
+      setSale({
+        id: 0, fecha: new Date().toISOString(), usuario_nombre: "Prueba", estado: "completada", metodo_pago: "efectivo", payments: [],
+        items: [{ id: 1, nombre: "PÁGINA DE PRUEBA - ÁÉÍÓÚ Ñ", cantidad: 1, precio_unitario: 1234.56, descuento_pct: 0, subtotal: 1234.56 }],
+        descuento_monto: 0, total: 1234.56, total_devuelto: 0,
+      });
+      return;
+    }
+    api.get(`/sales/${id}`).then(setSale).catch((e) => setError(e.message));
+  }, [id]);
+  useEffect(() => {
+    if (sale && negocio) autoPrint();
   }, [sale, negocio]);
 
   if (error) return <p className="print-error">{error}</p>;
@@ -21,10 +33,10 @@ export default function PrintSale() {
 
   return (
     <div className="print-page">
-      <div className="print-toolbar no-print">
+      {!inFrame() && <div className="print-toolbar no-print">
         <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Imprimir</button>
         <button className="btn btn-secondary" onClick={() => window.close()}>Cerrar</button>
-      </div>
+      </div>}
       <div className="ticket">
         <div className="t-center t-big">{negocio.negocio_nombre}</div>
         {negocio.negocio_direccion && <div className="t-center">{negocio.negocio_direccion}</div>}

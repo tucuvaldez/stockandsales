@@ -6,7 +6,7 @@ import { Badge, Confirm, Empty, Field, Loader, Modal, Pagination, useDebounced }
 import ReceptorForm, { CONSUMIDOR_FINAL, receptorError, receptorPayload } from "../components/ReceptorForm";
 import { CBTE_NOMBRES, INVOICE_STATES, PAYMENT_METHODS, cbteNumero, dateTime, money, paymentLabel, plural, round2 } from "../lib/format";
 
-const openPrint = (path) => window.open(path, "_blank", "noopener");
+import { printInFrame as openPrint, openPdf } from "../lib/print";
 
 export default function Sales() {
   const { isBilling } = useAuth();
@@ -187,7 +187,12 @@ function SaleDetail({ id, onClose, onChanged }) {
                   <Badge kind={INVOICE_STATES[inv.estado]?.badge}>{INVOICE_STATES[inv.estado]?.label}</Badge>
                   {inv.estado !== "autorizada" && inv.mensajes && <div className="text-muted">{inv.mensajes}</div>}
                 </span>
-                {inv.estado === "autorizada" && <button className="btn btn-ghost btn-sm" onClick={() => openPrint(`/imprimir/comprobante/${inv.id}`)}>🖨️ Ver</button>}
+                {inv.estado === "autorizada" && (
+                  <span className="nowrap">
+                    <button className="btn btn-ghost btn-sm" onClick={() => openPdf(`/documents/comprobante/${inv.id}.pdf`).catch((e) => toast.error(e.message))}>📄 PDF</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => openPrint(`/imprimir/comprobante/${inv.id}`)}>🖨️</button>
+                  </span>
+                )}
               </div>
             ))}
           </div>

@@ -5,12 +5,13 @@ import { api, download } from "../api";
 import { useAuth } from "../auth";
 import { Confirm, Field, Loader } from "../components/ui";
 import { saveText } from "../lib/csv";
+import { openFolder, printInFrame } from "../lib/print";
 import { date, dateTime, isValidCuit } from "../lib/format";
 
 export default function Settings() {
   const { isBilling } = useAuth();
   const [params, setParams] = useSearchParams();
-  const tabs = [["negocio", "Negocio"], ...(isBilling ? [["fiscal", "Facturación ARCA"]] : []), ["backups", "Copias de seguridad"]];
+  const tabs = [["negocio", "Negocio"], ...(isBilling ? [["fiscal", "Facturación ARCA"]] : []), ["impresion", "Impresión y PDF"], ["backups", "Copias de seguridad"]];
   const tab = tabs.some(([k]) => k === params.get("tab")) ? params.get("tab") : "negocio";
 
   return (
@@ -21,6 +22,7 @@ export default function Settings() {
       </div>
       {tab === "negocio" && <NegocioTab />}
       {tab === "fiscal" && <FiscalTab />}
+      {tab === "impresion" && <PrintTab />}
       {tab === "backups" && <BackupsTab />}
     </div>
   );
@@ -231,6 +233,97 @@ function FiscalTab() {
           onClose={() => setConfirmProd(false)}
         />
       )}
+    </div>
+  );
+}
+
+const Choice = ({ label, hint, value, options, onChange }) => (
+  <div className="form-group">
+    <span className="form-label">{label}</span>
+    <div className="segmented">
+      {options.map(([v, l]) => <button type="button" key={v} className={value === v ? "active" : ""} onClick={() => onChange(v)}>{l}</button>)}
+    </div>
+    {hint && <span className="form-hint">{hint}</span>}
+  </div>
+);
+
+function PrintTab() {
+  const { isBilling, reloadNegocio } = useAuth();
+  const [f, setF] = useState(null);
+  const [docs, setDocs] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api.get("/settings/impresion").then(setF).catch((e) => toast.error(e.message));
+    api.get("/documents").then(setDocs).catch(() => {});
+  }, []);
+  useEffect(load, [load]);
+  if (!f) return <Loader />;
+  const set = (k) => (v) => setF({ ...f, [k]: v });
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.put("/settings/impresion", { ...f, impresion_directa: f.impresion_directa === "1" });
+      await reloadNegocio();
+      toast.success("Configuración guardada");
+      load();
+    } catch (e) { toast.error(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <div className="grid-2 align-start">
+      <div className="card">
+        <h3 className="card-title">Qué se imprime</h3>
+        <Choice label="Cierre de caja" value={f.cierre_accion} onChange={set("cierre_accion")}
+          options={[["pdf", "Solo guardar PDF"], ["pdf_imprimir", "PDF e imprimir"]]}
+          hint="Si una sola persona atiende el negocio, con el PDF alcanza: queda archivado sin gastar papel." />
+        <Choice label="Ticket de venta (no fiscal)" value={f.ticket_venta} onChange={set("ticket_venta")}
+          options={[["no", "Nunca"], ["preguntar", "Botón para imprimir"], ["siempre", "Siempre"]]} />
+        {isBilling && (
+          <>
+            <Choice label="Factura electrónica" value={f.factura_imprimir} onChange={set("factura_imprimir")}
+              options={[["siempre", "Imprimir siempre"], ["preguntar", "Botón para imprimir"]]}
+              hint="Siempre se guarda además una copia en PDF." />
+            <Choice label="Formato de la factura impresa" value={f.factura_formato} onChange={set("factura_formato")}
+              options={[["a4", "Hoja A4"], ["ticket", "Ticket 80 mm (impresora térmica)"]]} />
+          </>
+        )}
+        <label className="check mt-8">
+          <input type="checkbox" checked={f.impresion_directa === "1"} onChange={(e) => set("impresion_directa")(e.target.checked ? "1" : "0")} />
+          Imprimir directo en la impresora predeterminada, sin mostrar la ventana de impresión
+        </label>
+        <p className="form-hint mt-8">
+          Solo Windows. StockLocal se abre en una ventana propia de Edge o Chrome. Se aplica la próxima vez que se abra el sistema con el ícono StockLocal.
+        </p>
+        <div className="btn-row mt-12">
+          <button className="btn btn-secondary" onClick={() => printInFrame("/imprimir/venta/0?prueba=1")}>🖨️ Imprimir página de prueba</button>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="card-title">Carpeta de documentos PDF</h3>
+        <Field label="Carpeta" hint={`Por defecto: ${f.carpetaPorDefecto}`}>
+          <input className="form-input mono fs-13" value={f.carpeta} onChange={(e) => setF({ ...f, carpeta: e.target.value })} />
+        </Field>
+        <div className="btn-row">
+          <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? "Guardando..." : "Guardar configuración"}</button>
+          <button className="btn btn-secondary" onClick={() => openFolder().catch((e) => toast.error(e.message))}>📂 Abrir carpeta</button>
+        </div>
+        <p className="form-hint mt-8">Adentro se ordenan solos: <span className="mono">Cierres de caja\2026-09\</span>{isBilling && <>, <span className="mono">Facturas\2026-09\</span></>}</p>
+        {docs?.archivos?.length > 0 && (
+          <>
+            <h4 className="section-title mt-20">Últimos documentos</h4>
+            {docs.archivos.slice(0, 10).map((d) => (
+              <div key={d.carpeta + d.nombre} className="row-between line fs-13">
+                <span className="mono fs-12">{d.nombre}</span>
+                <span className="text-muted fs-12 nowrap">{dateTime(d.fecha)}</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }

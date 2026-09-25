@@ -50,6 +50,23 @@ No hace falta MongoDB ni ninguna otra base de datos: todo queda en `data\stocklo
 - Impresión A4 con QR (RG 4892) y leyenda de IVA contenido en Factura B (Ley 27.743).
 - **Comprobantes ARCA → Libro para el contador** exporta un CSV con todas las autorizadas.
 
+## 3b. Impresión y PDF
+
+En **Configuración → Impresión y PDF**:
+
+| Opción | Recomendado |
+|--------|-------------|
+| Cierre de caja | *Solo guardar PDF* si atiende una sola persona; *PDF e imprimir* si hay empleados que rinden caja |
+| Ticket de venta | *Botón para imprimir* |
+| Factura electrónica | *Imprimir siempre*, formato **Ticket 80 mm** si hay impresora térmica o **A4** si es una impresora común |
+| Imprimir directo | Activarlo en Windows cuando la impresora predeterminada ya es la del mostrador |
+
+Con *imprimir directo*, `INICIAR.bat` abre StockLocal en una ventana propia de Edge (o Chrome) con `--kiosk-printing`: todo lo que se imprime sale por la **impresora predeterminada de Windows** sin mostrar el diálogo. Configurá antes esa impresora como predeterminada y usá **Imprimir página de prueba**.
+
+Los PDF se guardan en `Documentos\StockLocal` del usuario de Windows (se puede cambiar). Las facturas de homologación van a `Facturas (pruebas)`, separadas de las reales.
+
+> **Controlador fiscal**: StockLocal emite **factura electrónica** (CAE de ARCA), que se imprime en cualquier impresora común o térmica. No maneja controladores fiscales (Hasar/Epson con memoria fiscal). Si un cliente tiene uno, conviene que pase a factura electrónica.
+
 ## 4. Herramientas del técnico (carpeta `tecnico\`)
 
 Todas piden la **clave de técnico**:

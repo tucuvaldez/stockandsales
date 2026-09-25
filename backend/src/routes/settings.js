@@ -7,6 +7,7 @@ const { audit } = require("../audit");
 const settings = require("../settings");
 const afip = require("../services/afip");
 const backup = require("../services/backup");
+const documents = require("../services/documents");
 const { CONDICIONES_EMISOR } = require("../services/afip/constants");
 
 const router = express.Router();
@@ -27,7 +28,7 @@ function certInfo() {
 
 // Datos que necesita cualquier usuario logueado (encabezado de tickets y facturas).
 router.get("/negocio", (req, res) => {
-  const out = { ...settings.getMany(NEGOCIO_KEYS), modo: settings.getMode(), cajaObligatoria: cajaObligatoria() };
+  const out = { ...settings.getMany(NEGOCIO_KEYS), modo: settings.getMode(), cajaObligatoria: cajaObligatoria(), impresion: settings.printConfig() };
   if (settings.isBilling()) {
     const cfg = afip.fiscalConfig();
     out.fiscal = {
@@ -124,6 +125,31 @@ router.post("/fiscal/probar", adminOnly, requireBilling, async (req, res) => {
   } catch (err) {
     throw badRequest(err.message);
   }
+});
+
+router.get("/impresion", adminOnly, (req, res) => {
+  res.json({ ...settings.printConfig(), carpeta: documents.docsDir(), carpetaPorDefecto: documents.defaultDocsDir() });
+});
+
+router.put("/impresion", adminOnly, (req, res) => {
+  const values = {
+    cierre_accion: oneOf(req.body.cierre_accion, ["pdf", "pdf_imprimir"], { name: "Cierre de caja" }),
+    ticket_venta: oneOf(req.body.ticket_venta, ["no", "preguntar", "siempre"], { name: "Ticket de venta" }),
+    factura_imprimir: oneOf(req.body.factura_imprimir, ["siempre", "preguntar"], { name: "Factura" }),
+    factura_formato: oneOf(req.body.factura_formato, ["a4", "ticket"], { name: "Formato de factura" }),
+    impresion_directa: req.body.impresion_directa ? "1" : "0",
+  };
+  const carpeta = str(req.body.carpeta, { name: "Carpeta", max: 400 });
+  if (carpeta && carpeta !== documents.docsDir()) {
+    try {
+      settings.set("carpeta_documentos", documents.validateDocsDir(carpeta));
+    } catch (err) {
+      throw badRequest(`No se puede usar esa carpeta: ${err.message}`);
+    }
+  }
+  for (const [k, v] of Object.entries(values)) settings.set(k, v);
+  audit(req, "config.impresion", { detalle: { ...values, carpeta: documents.docsDir() } });
+  res.json({ ok: true });
 });
 
 router.get("/backups", adminOnly, (req, res) => res.json(backup.listBackups()));

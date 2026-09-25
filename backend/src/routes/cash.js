@@ -3,6 +3,7 @@ const { requireRole } = require("../auth");
 const { forbidden } = require("../errors");
 const { id, pagination } = require("../validate");
 const cash = require("../services/cash");
+const documents = require("../services/documents");
 
 const router = express.Router();
 const isManager = (user) => ["admin", "supervisor"].includes(user.rol);
@@ -21,7 +22,18 @@ router.get("/actual", (req, res) => {
 
 router.post("/abrir", (req, res) => res.status(201).json(forUser(cash.openSession(req.body, req), req.user)));
 router.post("/movimiento", (req, res) => res.json(forUser(cash.manualMovement(req.body, req), req.user)));
-router.post("/cerrar", (req, res) => res.json(cash.closeSession(req.body, req)));
+// Al cerrar se guarda el PDF del cierre. Si falla (disco, permisos), la caja queda cerrada igual.
+router.post("/cerrar", async (req, res) => {
+  const summary = cash.closeSession(req.body, req);
+  let pdf;
+  try {
+    pdf = { ok: true, archivo: await documents.saveCashClosePdf(summary) };
+  } catch (err) {
+    console.error("No se pudo guardar el PDF del cierre:", err);
+    pdf = { ok: false, error: err.message };
+  }
+  res.json({ ...summary, pdf });
+});
 
 router.get("/", requireRole("admin", "supervisor"), (req, res) => {
   const { limit, page, offset } = pagination(req.query, { defaultLimit: 30 });

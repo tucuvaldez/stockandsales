@@ -15,7 +15,14 @@ Sistema de stock y ventas para tu negocio.
 2. **Durante el día:**
    - Si pagás algo (proveedor, flete, compras) o sacás plata, usá **Pago / gasto / retiro** e indicá si fue en **efectivo** o por **transferencia**. Solo lo que sale en efectivo se descuenta de la caja.
    - Si un cliente paga una parte en efectivo y otra por transferencia, en la venta tocá **Dividir pago**.
-3. **Al cerrar:** contá todo el efectivo y tocá **Cerrar caja**. El sistema te dice si sobra o falta, y podés imprimir el cierre.
+3. **Al cerrar:** contá todo el efectivo y tocá **Cerrar caja**. El sistema te dice si sobra o falta.
+   El cierre se **guarda solo en PDF** en `Documentos\StockLocal\Cierres de caja\` (no hace falta imprimirlo).
+
+## Documentos PDF e impresión
+
+- Los cierres de caja (y las facturas, si facturás) se guardan solos en PDF, ordenados por mes, en `Documentos\StockLocal`.
+- En **Configuración → Impresión y PDF** elegís qué se imprime: nada, sólo lo que pidas o todo automáticamente.
+- Si activás **imprimir directo**, al abrir StockLocal desde el ícono las impresiones salen por la impresora sin preguntar.
 
 ## Atajos en "Nueva venta"
 
