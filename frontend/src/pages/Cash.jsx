@@ -104,7 +104,8 @@ function SessionView({ s, showExpected }) {
     <>
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-label">Vendido (neto)</div><div className="stat-value success">{money(s.totalNeto)}</div><div className="stat-meta">{s.cantidadVentas} venta(s)</div></div>
-        <div className="stat-card"><div className="stat-label">Efectivo inicial</div><div className="stat-value">{money(s.monto_inicial)}</div></div>
+        <div className="stat-card"><div className="stat-label">Pagos, gastos e ingresos</div><div className={`stat-value ${s.otrosNeto < 0 ? "warning" : ""}`}>{money(s.otrosNeto)}</div><div className="stat-meta">no son ventas</div></div>
+        <div className="stat-card"><div className="stat-label">Entró a la caja</div><div className="stat-value">{money(s.resultadoCaja)}</div><div className="stat-meta">vendido neto + otros movimientos</div></div>
         {showExpected && (
           <div className="stat-card"><div className="stat-label">Efectivo que debería haber</div><div className="stat-value accent">{money(s.efectivoEsperado)}</div><div className="stat-meta">inicial + movimientos en efectivo</div></div>
         )}
@@ -112,11 +113,12 @@ function SessionView({ s, showExpected }) {
 
       <div className="grid-2 align-start">
         <div className="card">
-          <h3 className="card-title">Por medio de pago</h3>
+          <h3 className="card-title">Entró a la caja, por medio de pago</h3>
+          <div className="row-between line fs-13 text-muted"><span>Efectivo inicial (cambio)</span><span>{money(s.monto_inicial)}</span></div>
           {medios.length === 0 ? <p className="fs-13 text-muted">Todavía no hay movimientos</p> : medios.map((m) => (
             <div key={m.value} className="row-between line"><span>{m.icon} {m.label}</span><strong>{money(s.porMedio[m.value])}</strong></div>
           ))}
-          <p className="fs-12 text-muted mt-8">Incluye ventas, devoluciones, ingresos y egresos. Solo el efectivo cuenta para el arqueo.</p>
+          <p className="fs-12 text-muted mt-8">Ventas menos devoluciones, más ingresos, menos pagos y retiros. Solo el efectivo se cuenta al cerrar.</p>
         </div>
         <div className="card">
           <h3 className="card-title">Movimientos de dinero</h3>

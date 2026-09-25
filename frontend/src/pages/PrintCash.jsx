@@ -37,11 +37,16 @@ export default function PrintCash() {
         <div>Por: {s.cerrada_por || "—"}</div>
         <div className="t-sep" />
         <div className="t-row"><span>Ventas ({s.cantidadVentas})</span><span>{money(s.porTipo.venta || 0)}</span></div>
-        {Object.entries(TIPO_LABEL).filter(([k]) => k !== "venta" && s.porTipo[k]).map(([k, l]) => (
-          <div key={k} className="t-row"><span>{l}</span><span>{money(s.porTipo[k])}</span></div>
+        {["devolucion", "anulacion"].filter((k) => s.porTipo[k]).map((k) => (
+          <div key={k} className="t-row"><span>{TIPO_LABEL[k]}</span><span>{money(s.porTipo[k])}</span></div>
         ))}
+        <div className="t-row"><strong>VENDIDO NETO</strong><strong>{money(s.totalNeto)}</strong></div>
+        {["ingreso", "egreso"].filter((k) => s.porTipo[k]).map((k) => (
+          <div key={k} className="t-row"><span>{TIPO_LABEL[k]}</span><span>{money(s.porTipo[k])}</span></div>
+        ))}
+        <div className="t-row"><strong>ENTRÓ A LA CAJA</strong><strong>{money(s.resultadoCaja)}</strong></div>
         <div className="t-sep" />
-        <div>POR MEDIO DE PAGO</div>
+        <div>ENTRÓ A LA CAJA POR MEDIO</div>
         {PAYMENT_METHODS.filter((m) => s.porMedio[m.value]).map((m) => (
           <div key={m.value} className="t-row"><span>{m.label}</span><span>{money(s.porMedio[m.value])}</span></div>
         ))}

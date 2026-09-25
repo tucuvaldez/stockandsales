@@ -26,7 +26,9 @@ router.get("/", (req, res) => {
   const { limit, page, offset } = pagination(req.query, { defaultLimit: 50 });
   const { sql, params } = buildFilter(req.query);
   const db = getDb();
-  const rows = db.prepare(`SELECT * FROM movements ${sql} ORDER BY fecha DESC, id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const rows = db
+    .prepare(`SELECT m.*, (SELECT activo FROM products WHERE id = m.product_id) AS producto_activo FROM movements m ${sql} ORDER BY fecha DESC, id DESC LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset);
   const { n } = db.prepare(`SELECT COUNT(*) AS n FROM movements ${sql}`).get(...params);
   res.json({ movements: rows, total: n, pages: Math.max(1, Math.ceil(n / limit)) });
 });

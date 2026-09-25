@@ -15,7 +15,8 @@ Sistema de stock y ventas para tu negocio.
 2. **Durante el día:**
    - Si pagás algo (proveedor, flete, compras) o sacás plata, usá **Pago / gasto / retiro** e indicá si fue en **efectivo** o por **transferencia**. Solo lo que sale en efectivo se descuenta de la caja.
    - Si un cliente paga una parte en efectivo y otra por transferencia, en la venta tocá **Dividir pago**.
-3. **Al cerrar:** contá todo el efectivo y tocá **Cerrar caja**. El sistema te dice si sobra o falta.
+3. **Al cerrar:** si sacaste plata (por ejemplo, para un familiar), registrala antes como **retiro** así la caja cierra justa. Contá todo el efectivo y tocá **Cerrar caja**. El sistema te dice si sobra o falta.
+   - **Vendido neto** = ventas menos devoluciones. **Entró a la caja** = vendido neto menos pagos, gastos y retiros.
    El cierre se **guarda solo en PDF** en `Documentos\StockLocal\Cierres de caja\` (no hace falta imprimirlo).
 
 ## Documentos PDF e impresión
@@ -43,7 +44,8 @@ Sistema de stock y ventas para tu negocio.
 | Qué pasa | Qué hacer |
 |----------|-----------|
 | "No se pudo conectar con StockLocal" | Abrí `INICIAR.bat` |
-| Me olvidé la contraseña | Pedile al administrador que la cambie en **Usuarios**. Si sos el administrador, llamá al técnico |
+| Me olvidé la contraseña (vendedor) | Pedile al administrador que la cambie en **Usuarios** |
+| Me olvidé la contraseña (dueño/administrador) | En el ingreso tocá **¿Olvidaste tu contraseña?** y usá tu **código de recuperación** (el papel que te dio el técnico). Si lo perdiste, llamá al técnico |
 | Una factura quedó "pendiente" o con "error" | Andá a **Comprobantes ARCA** y tocá **Reintentar** (suele pasar si se cortó internet) |
 
 Soporte técnico: _(completar con tu contacto)_

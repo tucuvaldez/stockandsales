@@ -131,15 +131,22 @@ router.delete("/:id", canManage, (req, res) => {
   const productId = id(req.params.id);
   const p = getDb().prepare("SELECT * FROM products WHERE id = ?").get(productId);
   if (!p) throw notFound("Producto no encontrado");
-  getDb().prepare("UPDATE products SET activo = 0, updated_at = ? WHERE id = ?").run(nowIso(), productId);
+  tx((db) => {
+    db.prepare("UPDATE products SET activo = 0, updated_at = ? WHERE id = ?").run(nowIso(), productId);
+    // Queda asentado en Movimientos que el producto se dio de baja (el historial anterior se conserva).
+    changeStock({ productId, delta: 0, tipo: "ajuste", motivo: `Producto eliminado${p.stock ? ` (tenía ${p.stock} u. en stock)` : ""}`, user: req.user });
+  });
   audit(req, "producto.eliminar", { entidad: "producto", entidadId: productId, detalle: { codigo: p.codigo, stock: p.stock } });
   res.json({ ok: true });
 });
 
 router.post("/:id/restaurar", canManage, (req, res) => {
   const productId = id(req.params.id);
-  const r = getDb().prepare("UPDATE products SET activo = 1, updated_at = ? WHERE id = ?").run(nowIso(), productId);
-  if (!r.changes) throw notFound("Producto no encontrado");
+  tx((db) => {
+    const r = db.prepare("UPDATE products SET activo = 1, updated_at = ? WHERE id = ? AND activo = 0").run(nowIso(), productId);
+    if (!r.changes) throw notFound("Producto no encontrado o ya activo");
+    changeStock({ productId, delta: 0, tipo: "ajuste", motivo: "Producto restaurado", user: req.user });
+  });
   audit(req, "producto.restaurar", { entidad: "producto", entidadId: productId });
   res.json({ ok: true });
 });

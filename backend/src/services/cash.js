@@ -102,7 +102,12 @@ function summary(sessionId) {
     porMedio,
     porTipo,
     cantidadVentas: ventas,
+    // Vendido neto: solo ventas (menos devoluciones y anulaciones).
     totalNeto: round2((porTipo.venta || 0) + (porTipo.devolucion || 0) + (porTipo.anulacion || 0)),
+    // Ingresos y egresos que no son ventas (pagos a proveedores, gastos, retiros, cambio).
+    otrosNeto: round2((porTipo.ingreso || 0) + (porTipo.egreso || 0)),
+    // Lo que realmente entró (o salió) de la caja en el turno, sumando todos los medios.
+    resultadoCaja: round2(entries.reduce((acc, e) => acc + e.monto, 0)),
     efectivoEsperado: session.estado === "cerrada" ? session.efectivo_esperado : efectivoEsperado,
   };
 }

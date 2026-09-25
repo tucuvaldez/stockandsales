@@ -1,6 +1,6 @@
 {
   "name": "stocklocal",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "Stock, ventas y facturación electrónica ARCA para comercios",
   "scripts": {

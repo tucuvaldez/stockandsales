@@ -86,13 +86,24 @@ async function saveCashClosePdf(summary) {
     row(doc, "Apertura", `${dateTime(s.abierta_at)} - ${s.abierta_por}`);
     row(doc, "Cierre", `${dateTime(s.cerrada_at)} - ${s.cerrada_por || "-"}`);
 
-    heading(doc, "Resumen");
+    heading(doc, "Ventas");
     row(doc, `Ventas (${s.cantidadVentas})`, money(s.porTipo.venta || 0));
-    for (const k of ["devolucion", "anulacion", "ingreso", "egreso"]) if (s.porTipo[k]) row(doc, TIPO[k] + "s", money(s.porTipo[k]));
+    if (s.porTipo.devolucion) row(doc, "Devoluciones", money(s.porTipo.devolucion));
+    if (s.porTipo.anulacion) row(doc, "Anulaciones", money(s.porTipo.anulacion));
     row(doc, "Vendido neto", money(s.totalNeto), { bold: true });
 
-    heading(doc, "Por medio de pago");
-    for (const [k, v] of Object.entries(s.porMedio)) row(doc, PAY[k] || k, money(v));
+    heading(doc, "Otros movimientos de dinero");
+    if (!s.porTipo.ingreso && !s.porTipo.egreso) row(doc, "Sin ingresos ni egresos", money(0));
+    if (s.porTipo.ingreso) row(doc, "Ingresos (cambio, aportes, cobros)", money(s.porTipo.ingreso));
+    if (s.porTipo.egreso) row(doc, "Egresos (pagos, gastos, retiros)", money(s.porTipo.egreso));
+
+    heading(doc, "Resultado de caja");
+    row(doc, "Vendido neto", money(s.totalNeto));
+    row(doc, "Otros movimientos", money(s.otrosNeto));
+    row(doc, "Entró a la caja en el turno", money(s.resultadoCaja), { bold: true });
+    doc.font("Helvetica").fontSize(8).fillColor("#555").text("Discriminado por medio de pago:", 40).fillColor("#000");
+    doc.moveDown(0.2);
+    for (const [k, v] of Object.entries(s.porMedio)) row(doc, `   ${PAY[k] || k}`, money(v));
 
     heading(doc, "Arqueo de efectivo");
     row(doc, "Efectivo inicial", money(s.monto_inicial));

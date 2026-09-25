@@ -16,7 +16,7 @@ async function requirePin() {
     if (installer.checkTechPin(pin)) return pin;
     console.log("  Clave incorrecta.");
   }
-  throw new Error("Demasiados intentos");
+  throw new Error("Demasiados intentos. Si te olvidaste la clave, usá CAMBIAR_CLAVE_TECNICO.bat con el código de recuperación.");
 }
 
 async function cambiarModo() {
@@ -72,10 +72,19 @@ async function restaurar() {
 
 async function cambiarClaveTecnico() {
   p.title("Cambiar clave de técnico");
-  const pin = await requirePin();
+  console.log("  Si te la olvidaste, ingresá el código de recuperación del técnico (XXXX-XXXX-XXXX-XXXX).\n");
+  let actual;
+  for (let i = 0; ; i++) {
+    actual = await p.askHidden("  Clave de técnico actual o código de recuperación");
+    if (installer.checkTechPinOrCode(actual)) break;
+    console.log("  Incorrecto.");
+    if (i >= 2) throw new Error("Demasiados intentos");
+  }
   const nuevo = await p.askNewSecret("  Nueva clave de técnico", (v) => (/^\S{6,}$/.test(v) ? null : "Mínimo 6 caracteres, sin espacios."));
-  installer.changeTechPin(pin, nuevo);
+  const code = installer.changeTechPin(actual, nuevo);
   console.log("\n  Clave de técnico actualizada.");
+  console.log(`\n  Nuevo código de recuperación del técnico (el anterior ya no sirve):\n\n     ${code}\n`);
+  await p.ask("  Anotalo y presioná Enter");
 }
 
 const COMMANDS = { "cambiar-modo": cambiarModo, "restablecer-clave": restablecerClave, restaurar, "cambiar-clave-tecnico": cambiarClaveTecnico };

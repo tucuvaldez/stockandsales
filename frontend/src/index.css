@@ -244,6 +244,19 @@ th.text-right, td.text-right { text-align: right; }
 .change-box .form-input { width: 130px; }
 .change-box strong { margin-left: auto; font-size: 16px; }
 
+/* Código de recuperación */
+.login-card.wide { max-width: 460px; }
+.recovery-box { border: 2px dashed var(--border-strong); border-radius: var(--radius); padding: 16px; text-align: center; background: var(--surface); }
+.recovery-title { font-weight: 700; }
+.recovery-label { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-top: 6px; }
+.recovery-code { font-family: var(--mono); font-size: 24px; font-weight: 700; letter-spacing: 2px; margin: 10px 0; user-select: all; }
+.recovery-help { font-size: 12px; color: var(--text-muted); }
+@media print {
+  body:has(.print-only-area) * { visibility: hidden; }
+  body:has(.print-only-area) .print-only-area, body:has(.print-only-area) .print-only-area * { visibility: visible; }
+  .print-only-area { position: absolute; left: 10mm; top: 10mm; width: 120mm; }
+}
+
 /* Utilidades */
 .mono { font-family: var(--mono); font-size: 13px; }
 .text-muted { color: var(--text-muted); } .text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-warning { color: var(--warning); } .text-body { color: var(--text); }

@@ -21,6 +21,9 @@ El zip trae la interfaz compilada y todos los componentes: en la PC del cliente 
    - **Clave de técnico**: guardala vos, no se la des al cliente (ver punto 4).
    - Usuario y contraseña del **administrador** (el dueño).
    - Si arranca solo al prender la PC.
+   - Al final se muestran **dos códigos de recuperación** (una sola vez):
+     - **Del dueño**: anotáselo o imprimilo y dáselo. Con él recupera su contraseña desde "¿Olvidaste tu contraseña?" sin llamarte. Si lo pierde, puede generar otro en *Configuración → Negocio* (estando logueado).
+     - **Del técnico**: guardalo vos. Si te olvidás la clave de técnico, `tecnico\CAMBIAR_CLAVE_TECNICO.bat` lo acepta en lugar de la clave.
 4. Se crea un acceso directo **StockLocal** en el escritorio y se abre el sistema.
 
 No hace falta MongoDB ni ninguna otra base de datos: todo queda en `data\stocklocal.db`.
@@ -76,7 +79,7 @@ Todas piden la **clave de técnico**:
 | `CAMBIAR_MODO.bat` | Pasar de local a facturación, o al revés. Reinicia el sistema solo |
 | `RESTABLECER_CLAVE.bat` | El cliente se olvidó la contraseña del administrador |
 | `RESTAURAR_COPIA.bat` | Volver a una copia de seguridad (antes guarda una de los datos actuales) |
-| `CAMBIAR_CLAVE_TECNICO.bat` | Cambiar tu clave de técnico |
+| `CAMBIAR_CLAVE_TECNICO.bat` | Cambiar tu clave de técnico. Acepta el **código de recuperación del técnico** si te la olvidaste, y te da uno nuevo |
 
 El modo **no** está en ningún archivo editable: queda guardado en la base y solo se cambia con tu clave.
 

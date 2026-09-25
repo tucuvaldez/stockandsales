@@ -8,6 +8,7 @@ const settings = require("../settings");
 const afip = require("../services/afip");
 const backup = require("../services/backup");
 const documents = require("../services/documents");
+const recovery = require("../recovery");
 const { CONDICIONES_EMISOR } = require("../services/afip/constants");
 
 const router = express.Router();
@@ -150,6 +151,15 @@ router.put("/impresion", adminOnly, (req, res) => {
   for (const [k, v] of Object.entries(values)) settings.set(k, v);
   audit(req, "config.impresion", { detalle: { ...values, carpeta: documents.docsDir() } });
   res.json({ ok: true });
+});
+
+router.get("/recuperacion", adminOnly, (req, res) => res.json(recovery.status("admin")));
+
+// Genera un código de recuperación nuevo para el dueño. Se muestra una sola vez.
+router.post("/recuperacion", adminOnly, (req, res) => {
+  const codigo = recovery.issue("admin");
+  audit(req, "config.codigo_recuperacion");
+  res.json({ codigo, ...recovery.status("admin") });
 });
 
 router.get("/backups", adminOnly, (req, res) => res.json(backup.listBackups()));

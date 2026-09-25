@@ -5,6 +5,7 @@ const { checkPassword, signToken, requireAuth, hashPassword } = require("../auth
 const { HttpError, badRequest } = require("../errors");
 const { str } = require("../validate");
 const { audit } = require("../audit");
+const installer = require("../installer");
 
 const router = express.Router();
 const bcrypt = require("bcryptjs");
@@ -35,6 +36,29 @@ router.post("/login", loginLimiter, async (req, res) => {
 
   audit({ user, ip: req.ip }, "login", { entidad: "usuario", entidadId: user.id });
   res.json({ token: signToken(user), user: publicUser(user) });
+});
+
+const recoverLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados intentos. Esperá 15 minutos." },
+});
+
+// El dueño recupera el acceso con su código de recuperación. Se le entrega un código nuevo.
+router.post("/recuperar", recoverLimiter, async (req, res) => {
+  const usuario = str(req.body?.usuario, { name: "Usuario", max: 60, required: true });
+  const codigo = str(req.body?.codigo, { name: "Código de recuperación", max: 40, required: true });
+  const nueva = str(req.body?.nueva, { name: "Contraseña nueva", max: 200, required: true });
+  let r;
+  try {
+    r = await installer.resetWithRecoveryCode(usuario, codigo, nueva);
+  } catch (err) {
+    audit({ ip: req.ip }, "login.recuperacion_fallida", { detalle: { usuario } });
+    throw badRequest(err.message);
+  }
+  res.json({ token: signToken(r.user), user: publicUser(r.user), nuevoCodigo: r.newCode });
 });
 
 router.get("/me", requireAuth, (req, res) => res.json(req.user));

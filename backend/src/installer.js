@@ -3,6 +3,7 @@ const { getDb, tx } = require("./db");
 const settings = require("./settings");
 const { hashPassword } = require("./auth");
 const { audit } = require("./audit");
+const recovery = require("./recovery");
 
 const isInstalled = () => !!settings.getMode();
 
@@ -28,6 +29,8 @@ async function install({ mode, negocio, techPin, admin }) {
     db.prepare("INSERT INTO users (nombre, usuario, password_hash, rol) VALUES (?, ?, ?, 'admin')").run(admin.nombre || "Administrador", admin.usuario, passHash);
     audit(null, "sistema.instalar", { detalle: { mode } });
   });
+  // Códigos para no quedar bloqueados: uno para el dueño y otro para el técnico.
+  return { adminCode: recovery.issue("admin"), techCode: recovery.issue("tecnico") };
 }
 
 function checkTechPin(pin) {
@@ -54,11 +57,29 @@ async function resetPassword(usuario, newPassword, pin) {
   audit(null, "sistema.restablecer_clave", { entidad: "usuario", entidadId: user.id });
 }
 
-function changeTechPin(oldPin, newPin) {
-  if (!checkTechPin(oldPin)) throw new Error("Clave de técnico incorrecta");
+// Acepta la clave actual o el código de recuperación del técnico. Devuelve un código de recuperación nuevo.
+function changeTechPin(oldPinOrCode, newPin) {
+  const viaCode = !checkTechPin(oldPinOrCode) && recovery.check("tecnico", oldPinOrCode);
+  if (!viaCode && !checkTechPin(oldPinOrCode)) throw new Error("Clave de técnico o código de recuperación incorrecto");
   validatePin(newPin);
   settings.set("tech_pin_hash", bcrypt.hashSync(newPin, 10));
-  audit(null, "sistema.cambiar_clave_tecnico");
+  audit(null, "sistema.cambiar_clave_tecnico", { detalle: { conCodigoDeRecuperacion: viaCode } });
+  return recovery.issue("tecnico");
 }
 
-module.exports = { isInstalled, install, checkTechPin, setMode, resetPassword, changeTechPin };
+const checkTechPinOrCode = (v) => checkTechPin(v) || recovery.check("tecnico", v);
+
+/** El dueño recupera el acceso con su código, sin depender del técnico. Devuelve el código nuevo. */
+async function resetWithRecoveryCode(usuario, code, newPassword) {
+  if (!recovery.check("admin", code)) throw new Error("El código de recuperación no es correcto");
+  if (!newPassword || newPassword.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres");
+  const user = getDb().prepare("SELECT * FROM users WHERE usuario = ?").get(String(usuario || "").trim().toLowerCase());
+  if (!user || user.rol !== "admin") throw new Error("El código de recuperación solo sirve para usuarios administradores");
+  getDb()
+    .prepare("UPDATE users SET password_hash = ?, activo = 1, token_version = token_version + 1, updated_at = ? WHERE id = ?")
+    .run(await hashPassword(newPassword), new Date().toISOString(), user.id);
+  audit({ user }, "usuario.recuperar_clave", { entidad: "usuario", entidadId: user.id });
+  return { user: getDb().prepare("SELECT * FROM users WHERE id = ?").get(user.id), newCode: recovery.issue("admin") };
+}
+
+module.exports = { isInstalled, install, checkTechPin, checkTechPinOrCode, setMode, resetPassword, changeTechPin, resetWithRecoveryCode };

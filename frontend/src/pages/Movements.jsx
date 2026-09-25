@@ -59,8 +59,8 @@ export default function Movements() {
                   <tr key={m.id}>
                     <td className="fs-13 nowrap">{dateTime(m.fecha)}</td>
                     <td><Badge kind={MOVEMENT_TYPES[m.tipo]?.badge}>{MOVEMENT_TYPES[m.tipo]?.label || m.tipo}</Badge></td>
-                    <td><span className="mono fs-12 text-muted">{m.codigo}</span> {m.nombre}</td>
-                    <td className={`text-right fw-700 ${m.cantidad < 0 ? "text-danger" : "text-success"}`}>{m.cantidad > 0 ? `+${m.cantidad}` : m.cantidad}</td>
+                    <td><span className="mono fs-12 text-muted">{m.codigo}</span> {m.nombre}{m.producto_activo === 0 && <> <Badge>eliminado</Badge></>}</td>
+                    <td className={`text-right fw-700 ${m.cantidad < 0 ? "text-danger" : m.cantidad > 0 ? "text-success" : "text-muted"}`}>{m.cantidad > 0 ? `+${m.cantidad}` : m.cantidad === 0 ? "—" : m.cantidad}</td>
                     <td className="text-right nowrap text-muted">{m.stock_antes} → <strong className="text-body">{m.stock_despues}</strong></td>
                     <td className="fs-13">{m.motivo}</td>
                     <td className="fs-13 text-muted">{m.usuario_nombre}</td>

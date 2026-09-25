@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { Confirm, Field, Loader } from "../components/ui";
 import { saveText } from "../lib/csv";
 import { openFolder, printInFrame } from "../lib/print";
+import { RecoveryCodeCard } from "../components/RecoveryCode";
 import { date, dateTime, isValidCuit } from "../lib/format";
 
 export default function Settings() {
@@ -32,6 +33,9 @@ function NegocioTab() {
   const { negocio, reloadNegocio } = useAuth();
   const [f, setF] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [recovery, setRecovery] = useState(null);
+  const loadRecovery = useCallback(() => api.get("/settings/recuperacion").then(setRecovery).catch(() => {}), []);
+  useEffect(() => { loadRecovery(); }, [loadRecovery]);
   useEffect(() => {
     if (negocio) setF({ nombre: negocio.negocio_nombre, direccion: negocio.negocio_direccion, telefono: negocio.negocio_telefono, pieTicket: negocio.negocio_pie_ticket, cajaObligatoria: negocio.cajaObligatoria });
   }, [negocio]);
@@ -45,6 +49,7 @@ function NegocioTab() {
   };
 
   return (
+    <>
     <form className="card narrow" onSubmit={submit}>
       <p className="text-muted fs-13 mb-12">Aparecen en el encabezado de los tickets.</p>
       <Field label="Nombre del negocio" required><input className="form-input" value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} maxLength={100} /></Field>
@@ -57,6 +62,8 @@ function NegocioTab() {
       </label>
       <div className="form-actions"><button className="btn btn-primary" disabled={busy}>{busy ? "Guardando..." : "Guardar"}</button></div>
     </form>
+    <RecoveryCodeCard status={recovery} onChanged={loadRecovery} />
+    </>
   );
 }
 

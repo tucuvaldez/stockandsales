@@ -46,7 +46,16 @@ async function main() {
   }
   const password = await p.askNewSecret("  Contraseña (mín. 6 caracteres)", (v) => (v.length >= 6 ? null : "Mínimo 6 caracteres."));
 
-  await installer.install({ mode, negocio, techPin, admin: { nombre, usuario, password } });
+  const { adminCode, techCode } = await installer.install({ mode, negocio, techPin, admin: { nombre, usuario, password } });
+
+  p.title("CÓDIGOS DE RECUPERACIÓN - anotalos ahora");
+  console.log("  Se muestran UNA sola vez. Sin ellos no hay forma de recuperar una clave olvidada.\n");
+  console.log(`  Para el DUEÑO (dárselo en papel):   ${adminCode}`);
+  console.log("    Sirve para entrar si se olvida la contraseña: en el ingreso, \"¿Olvidaste tu contraseña?\".");
+  console.log("    También se puede generar uno nuevo desde Configuración > Negocio.\n");
+  console.log(`  Para VOS, el técnico (no se lo des al cliente):   ${techCode}`);
+  console.log("    Si te olvidás la clave de técnico: tecnico\\CAMBIAR_CLAVE_TECNICO.bat con este código.\n");
+  await p.ask("  Presioná Enter cuando los hayas anotado");
 
   p.title("Instalación completa");
   console.log(`  Modo: ${MODE_LABEL[mode]}`);
