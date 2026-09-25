@@ -1,83 +1,52 @@
 # StockLocal
 
-Sistema de gestión de stock, ventas y facturación configurable por modo.
+Stock, ventas y facturación electrónica ARCA (ex AFIP) para comercios. Se instala en la PC del cliente en uno de dos modos, que elige el técnico:
 
-## Modo local
+- **Local**: productos, stock, ventas, devoluciones, anulaciones y registro completo de movimientos. Sin facturación.
+- **Facturación**: lo anterior + Factura A/B/C y Notas de Crédito electrónicas reales vía WSAA/WSFEv1.
 
-Ideal para tiendas pequeñas, kioscos, emprendimientos y usuarios que solo necesitan:
-- productos
-- stock
-- ventas
-- historial
-- movimientos
-- ajustes de inventario
-- usuarios con roles
-- control por permisos sin facturas ni rendiciones legales
+Guía de instalación: [INSTALL_GUIDE.md](INSTALL_GUIDE.md) · Manual del cliente: [LEEME.md](LEEME.md)
 
-El modo local conserva los mismos accesos, pantallas y usos del sistema, pero sin exigir facturación, libros fiscales ni arca.
+## Arquitectura
 
-## Modo facturación
+| Capa | Tecnología |
+|------|-----------|
+| Base de datos | SQLite embebido (`node:sqlite`, sin dependencias nativas) con migraciones versionadas |
+| Backend | Node 22.13+, Express 5 · sirve también la interfaz compilada (un solo proceso y un solo puerto) |
+| Frontend | React 18 + Vite |
+| ARCA | Cliente propio de WSAA (firma CMS con node-forge) y WSFEv1 (SOAP) |
 
-Ideal para clientes que necesitan:
-- tipo A, B, C
-- consumidor final
-- comprobantes
-- clientes
-- emisión fiscal
-- control legal adicional
-
-## Instalación rápida
-
-1. Instalar Node.js LTS
-2. Instalar MongoDB Community
-3. Abrir la carpeta del proyecto
-4. Ejecutar INICIAR.bat
-5. Elegir:
-   - 1 = local
-   - 2 = facturacion
-6. El sistema abre en http://localhost:3000
-
-## Configuración manual
-
-En el archivo backend/.env:
-
-```env
-APP_MODE=local
-PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/stocklocal
+```
+backend/
+  server.js              arranque (127.0.0.1:3000 por defecto)
+  src/db.js              esquema + migraciones + transacciones
+  src/services/sales.js  ventas, devoluciones y anulaciones (atómicas)
+  src/services/stock.js  único punto que modifica stock (siempre deja un movimiento)
+  src/services/billing.js facturas, notas de crédito, cola y conciliación con ARCA
+  src/services/afip/     WSAA, WSFEv1, tablas de ARCA
+  scripts/install.js     asistente de instalación (INSTALAR.bat)
+  scripts/tecnico.js     cambiar modo, restablecer clave, restaurar copia
+frontend/src/pages/      pantallas
 ```
 
-Para facturación:
+### Garantías
 
-```env
-APP_MODE=facturacion
-PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/stocklocal
+- Precios y totales se calculan en el servidor; lo que manda el navegador se ignora.
+- Venta + items + stock + movimientos en una sola transacción. El stock no puede quedar negativo (restricción en la base).
+- Las ventas no se borran: se anulan y quedan en el historial. No se puede devolver más de lo vendido.
+- Toda acción queda en el registro de actividad (quién, qué, cuándo).
+- Factura: si se corta la conexión, al reintentar se consulta a ARCA antes de pedir un número nuevo.
+- Sesiones JWT con secreto aleatorio por instalación; se invalidan al cambiar la contraseña, el rol o al desactivar al usuario. Login con límite de intentos.
+
+## Desarrollo
+
+```bash
+npm run setup                          # instala dependencias
+node backend/scripts/install.js        # crea data/ con un modo y un admin
+npm run dev:api                        # API en :3000 (se reinicia al guardar)
+npm run dev:web                        # interfaz en :5173 con proxy a la API
+npm test                               # tests (ventas, facturación con ARCA simulado, WSAA)
+npm run release                        # zip para instalar en clientes
 ```
 
-## Seguridad
-
-- CORS habilitado solo para la app local
-- Helmet para cabeceras básicas
-- rate limiting por IP
-- validación del modo
-- API preparada para crecer sin romper el flujo principal
-
-## Escalabilidad
-
-La estructura está pensada para crecer sin reescribir todo:
-- backend modular
-- modelos separados
-- rutas por dominio
-- estado central del modo de uso
-- facturación como módulo adicional
-
-## Siguiente capa recomendada
-
-Para clientes más grandes, la siguiente etapa es:
-- clientes y proveedores
-- comprobantes legales
-- usuarios con roles
-- multi-sucursal
-- exportación e importación masiva
-- backup y auditoría
+`STOCKLOCAL_DATA=/otra/carpeta` usa otra carpeta de datos (útil para tener varias instalaciones de prueba).

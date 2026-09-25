@@ -1,0 +1,14 @@
+{
+  "name": "stocklocal",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Stock, ventas y facturación electrónica ARCA para comercios",
+  "scripts": {
+    "setup": "npm --prefix backend ci && npm --prefix frontend ci",
+    "build": "npm --prefix frontend run build",
+    "test": "npm --prefix backend test",
+    "dev:api": "npm --prefix backend run dev",
+    "dev:web": "npm --prefix frontend run dev",
+    "release": "node scripts/release.js"
+  }
+}

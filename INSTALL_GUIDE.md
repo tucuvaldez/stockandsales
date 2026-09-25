@@ -1,230 +1,83 @@
-# Guía de instalación rápida — StockLocal
+# Guía del técnico — StockLocal 2
 
-Esta guía está pensada para que cualquier usuario pueda instalar el sistema en una PC sin conocimiento técnico avanzado.
+Esta guía es para quien instala el sistema. El cliente usa `LEEME.md`.
 
-## Requisitos
-
-1. Instalar Node.js LTS
-   - Descargalo desde: https://nodejs.org/
-   - Durante la instalación, dejá todo por defecto.
-
-2. Instalar MongoDB Community
-   - Descargalo desde: https://www.mongodb.com/try/download/community
-   - Durante la instalación, dejá la opción recomendada.
-   - Si te pide instalar como servicio, dejá marcada la opción que lo deja corriendo automáticamente.
-
-3. Tener acceso a una carpeta del proyecto
-   - Podés recibirlo por Drive, ZIP o Git.
-   - Lo ideal es dejarlo en una carpeta fácil como: `C:\StockLocal`
-
----
-
-## 1) Descomprimir el proyecto
-
-1. Extraer la carpeta del ZIP.
-2. Entrar a la carpeta principal del proyecto.
-3. Verás carpetas como:
-   - `backend`
-   - `frontend`
-   - `LEEME.md`
-   - `INICIAR.bat`
-
----
-
-## 2) Iniciar MongoDB
-
-### Opción A: si MongoDB se instaló como servicio
-- La base se levanta sola al iniciar Windows.
-- Si no está corriendo:
-  - Abrí "Servicios"
-  - Busca "MongoDB Server"
-  - Haz click derecho → Iniciar
-
-### Opción B: iniciar manualmente
-- Abrí la terminal de MongoDB o el CMD desde la carpeta de instalación.
-- Si no sabes cómo, lo más simple es dejarlo como servicio.
-
----
-
-## 3) Instalar dependencias
-
-### En Windows
-1. Abrí una terminal en la carpeta del proyecto.
-2. Ejecutá:
+## 1. Preparar el paquete (en tu PC)
 
 ```bash
-cd backend
-npm install
-cd ..
-cd frontend
-npm install
+npm run setup      # solo la primera vez
+npm run release    # corre los tests y genera release/StockLocal-<versión>.zip
 ```
 
-Si preferís, también podés usar el archivo `INICIAR.bat`, que lo hace automáticamente.
+El zip trae la interfaz compilada y todos los componentes: en la PC del cliente **no hace falta internet** para instalar (salvo para facturar).
 
----
+## 2. Instalar en la PC del cliente
 
-## 4) Levantar el sistema
+1. Instalar **Node.js LTS** (22.13 o superior) desde https://nodejs.org, con las opciones por defecto.
+2. Descomprimir el zip en una carpeta fija, por ejemplo `C:\StockLocal`. **No** en Descargas ni en el Escritorio.
+3. Doble clic en **`INSTALAR.bat`** y responder:
+   - **Modo**: `1` = Local (solo registro, sin facturación) · `2` = Facturación electrónica ARCA.
+   - Nombre del negocio.
+   - **Clave de técnico**: guardala vos, no se la des al cliente (ver punto 4).
+   - Usuario y contraseña del **administrador** (el dueño).
+   - Si arranca solo al prender la PC.
+4. Se crea un acceso directo **StockLocal** en el escritorio y se abre el sistema.
 
-### Opción rápida
-Doble clic en `INICIAR.bat`
+No hace falta MongoDB ni ninguna otra base de datos: todo queda en `data\stocklocal.db`.
 
-Esto va a:
-- revisar si Node.js está instalado
-- instalar dependencias si faltan
-- iniciar backend
-- iniciar frontend
-- abrir el navegador
+## 3. Modo facturación: configurar ARCA
 
----
+1. Ingresar como administrador → **Configuración → Facturación ARCA**.
+2. Cargar CUIT, razón social, condición frente al IVA y punto de venta. Guardar.
+3. Tocar **Generar solicitud (.csr)**. La clave privada queda guardada en el sistema: no hace falta OpenSSL.
+4. **Homologación (pruebas)** — recomendado primero:
+   - En ARCA con clave fiscal, adherir **WSASS - Autogestión Certificados Homologación**.
+   - En WSASS: *Nuevo certificado* pegando el .csr → guardar el certificado como `.crt`.
+   - En WSASS: *Crear autorización a servicio* → servicio **wsfe**.
+5. Subir el `.crt` y tocar **Probar conexión**. Hacer una venta de prueba con factura.
+6. **Producción**:
+   - En ARCA: *Administración de Certificados Digitales* → nuevo alias → subir **el mismo .csr** → descargar el `.crt`.
+   - *Administrador de Relaciones de Clave Fiscal* → nueva relación → ARCA → WebServices → **Facturación Electrónica**, con el alias como representante.
+   - *Administración de puntos de venta y domicilios* → crear un punto de venta del tipo **Web Services** y cargar ese número.
+   - En StockLocal: elegir **Producción**, guardar, subir el `.crt` de producción y **Probar conexión**.
 
-## 5) Abrir la aplicación
+### Qué hace el sistema con las facturas
 
-Se abre normalmente en:
+- La letra se elige sola: Responsable Inscripto → **A** a inscriptos y monotributistas, **B** al resto. Monotributo/Exento → **C**.
+- Valida el CUIT (dígito verificador), el DNI y el monto a partir del cual ARCA exige identificar al consumidor final (el monto se puede cambiar en Configuración).
+- Si ARCA no responde, **la venta se guarda igual** y la factura queda *pendiente*. Al reintentar, primero consulta a ARCA si ese número ya se autorizó: **nunca duplica ni saltea números**.
+- Devoluciones y anulaciones de ventas facturadas emiten la **Nota de Crédito** asociada automáticamente.
+- Impresión A4 con QR (RG 4892) y leyenda de IVA contenido en Factura B (Ley 27.743).
+- **Comprobantes ARCA → Libro para el contador** exporta un CSV con todas las autorizadas.
 
-```text
-http://localhost:3000
-```
+## 4. Herramientas del técnico (carpeta `tecnico\`)
 
----
+Todas piden la **clave de técnico**:
 
-## 6) Modo local vs futuro facturación
+| Archivo | Para qué |
+|---------|----------|
+| `CAMBIAR_MODO.bat` | Pasar de local a facturación, o al revés. Reinicia el sistema solo |
+| `RESTABLECER_CLAVE.bat` | El cliente se olvidó la contraseña del administrador |
+| `RESTAURAR_COPIA.bat` | Volver a una copia de seguridad (antes guarda una de los datos actuales) |
+| `CAMBIAR_CLAVE_TECNICO.bat` | Cambiar tu clave de técnico |
 
-El sistema trae un modo configurable en el backend.
+El modo **no** está en ningún archivo editable: queda guardado en la base y solo se cambia con tu clave.
 
-### Modo local (recomendado para empezar)
-Archivo `.env` del backend:
+## 5. Actualizar a una versión nueva
 
-```env
-APP_MODE=local
-MONGO_URI=mongodb://127.0.0.1:27017/stocklocal
-PORT=5000
-```
+1. `DETENER.bat`.
+2. Copiar los archivos del zip nuevo **encima** de la carpeta actual. La carpeta `data` no viene en el zip, así que no se toca.
+3. `INSTALAR.bat`: detecta que ya está instalado, conserva los datos y aplica las migraciones de la base al iniciar.
 
-Esto habilita:
-- carga manual de productos
-- carga desde Excel
-- ventas
-- movimientos de stock
-- historial
-- devoluciones
-- sin facturación legal
+## 6. Usar desde varias PCs de la red (opcional)
 
-### Modo facturación real (futuro)
-Cuando se lo necesite a un cliente real:
+En `backend\.env` cambiar `HOST=0.0.0.0`, reiniciar y abrir `http://IP-DE-ESTA-PC:3000` desde las otras PCs. Permitir el puerto en el firewall de Windows. Cada persona entra con su usuario.
 
-```env
-APP_MODE=facturacion
-MONGO_URI=mongodb://127.0.0.1:27017/stocklocal
-PORT=5000
-```
+## 7. Dónde está cada cosa
 
-Esto deja preparado el sistema para agregar:
-- clientes
-- comprobantes
-- tipo A/B/C
-- CUIT/IVA
-- facturación legal
-
-> El cambio lo hace quien instala el sistema, no el usuario final.
-
----
-
-## 7) Cómo cargar productos
-
-### Carga manual
-- Ir a Productos
-- Hacer click en “Nuevo producto”
-- Completar:
-  - código
-  - nombre
-  - categoría
-  - talle
-  - precio
-  - stock
-  - stock mínimo
-
-### Carga desde Excel
-Próximamente se puede agregar una importación masiva con una plantilla simple.
-El formato recomendado es:
-
-| codigo | nombre | talle | categoria | precio | precioCompra | stock | stockMinimo |
-|--------|--------|-------|-----------|--------|--------------|-------|-------------|
-
----
-
-## 8) Cómo registrar ventas
-
-1. Ir a “Nueva Venta”
-2. Buscar producto
-3. Agregar al carrito
-4. Ajustar cantidades y descuentos
-5. Elegir método de pago
-6. Confirmar venta
-
-El sistema actualiza automáticamente el stock.
-
----
-
-## 9) Como usar movimientos
-
-En el sistema, toda venta, ajuste o devolución queda registrada como movimiento.
-Esto permite ver:
-- qué se vendió
-- cuándo
-- cuánto stock había antes
-- cuánto quedó después
-
-Esto es muy útil para controlar inventario y evitar errores.
-
----
-
-## 10) Problemas comunes
-
-### Error de conexión a MongoDB
-Verificá que MongoDB esté corriendo.
-
-### Error al abrir la app
-Verificá que Node.js esté instalado.
-
-### Puerto ocupado
-Si el puerto 3000 o 5000 está ocupado, cerrá la aplicación que lo usa o cambiá los puertos en `.env`.
-
----
-
-## 11) Recomendación de entrega al cliente
-
-Para enviar el sistema por Drive o ZIP:
-
-1. Incluir la carpeta completa del proyecto
-2. Incluir esta guía
-3. Incluir una carta breve con:
-   - “Para usarlo, instalar Node.js y MongoDB”
-   - “Ejecutar INICIAR.bat”
-   - “Si se quiere usar en modo local, dejar APP_MODE=local”
-
----
-
-## 12) Mantenimiento futuro
-
-Cuando el cliente quiera facturación legal real, solo se activa el modo de facturación y se agregan:
-- clientes
-- comprobantes
-- tipo de IVA
-- emisión fiscal
-
-El resto del sistema de stock y ventas se mantiene igual.
-
----
-
-## Resumen
-
-La forma más sencilla para instalarlo es:
-
-1. Instalar Node.js
-2. Instalar MongoDB
-3. Abrir la carpeta del proyecto
-4. Ejecutar `INICIAR.bat`
-5. Listo
-
-Y va a quedar preparado para crecer a facturación real sin volver a arrancar desde cero.
+| Ruta | Contenido |
+|------|-----------|
+| `data\stocklocal.db` | Toda la información (incluido el certificado de ARCA) |
+| `data\backups\` | Copias automáticas diarias (últimas 30) |
+| `data\logs\servidor.log` | Registro de errores del servidor |
+| `backend\.env` | Puerto y red |
